@@ -1,0 +1,76 @@
+﻿html, body{
+  min-height: 100%;
+  height: 100%;
+}
+
+.fill{
+  height: calc(100vh - 100px);
+}
+
+body {
+  padding-top: 60px; /* space for the top nav bar */
+  margin-right: 30px;
+}
+
+#userHubs {
+  overflow: auto;
+  width: 100%;
+  height: calc(100vh - 150px);
+}
+
+#forgeViewer {
+  width: 100%;
+}
+
+.createQualityIssues {
+  background-image: url(https://github.com/encharm/Font-Awesome-SVG-PNG/raw/master/white/png/24/pencil.png);
+  background-size: 24px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.loadQualityIssues {
+  background-image: url(https://github.com/encharm/Font-Awesome-SVG-PNG/raw/master/white/png/24/exclamation-triangle.png);
+  background-size: 24px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.bim360-docking-panel {
+  top: 10px;
+  left: 10px;
+}
+
+.bim360-asset-list-panel .docking-panel-scroll {
+  width: 370px;
+  height: 430px;
+  min-width: 370px;
+  min-height: 430px;
+}
+
+.bim360-asset-list-panel .docking-panel-scroll table {
+  width: 100%;
+  height: 100%;
+}
+
+/* .bim360-asset-list-panel table td:first-child {
+  width: 30px;
+  color: #f3f7fb;
+}
+
+.bim360-asset-list-panel table td:last-child {
+  color: #bec8d2;
+}
+
+.bim360-asset-list-panel table tr:last-child {
+  text-align: center;
+}
+
+.bim360-asset-list-panel table tr:last-child button {
+  width: calc(100% - 50px);
+  height: 30px;
+}
+
+.bim360-asset-list-panel table button {
+  color: black;
+} */
