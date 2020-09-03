@@ -41,36 +41,73 @@ body {
   left: 10px;
 }
 
-.bim360-asset-list-panel .docking-panel-scroll {
-  width: 370px;
-  height: 430px;
-  min-width: 370px;
-  min-height: 430px;
+.bim360-asset-list-panel {
+  background: rgba(34,34,34,.9) !important;
+  max-height: 750px;
+  max-width: 200px;
+  width: 750px;
+  height: 200px;
 }
 
-.bim360-asset-list-panel .docking-panel-scroll table {
-  width: 100%;
-  height: 100%;
+.bim360-asset-list-panel .docking-panel-footer {
+  z-index: 1;
 }
 
-/* .bim360-asset-list-panel table td:first-child {
-  width: 30px;
-  color: #f3f7fb;
+.bim360-asset-list-panel .docking-panel-footer-resizer {
+  display: none;
 }
 
-.bim360-asset-list-panel table td:last-child {
-  color: #bec8d2;
-}
-
-.bim360-asset-list-panel table tr:last-child {
-  text-align: center;
-}
-
-.bim360-asset-list-panel table tr:last-child button {
-  width: calc(100% - 50px);
-  height: 30px;
-}
-
-.bim360-asset-list-panel table button {
-  color: black;
+/* .bim360-asset-list-panel .datatable {
+  //width: 500px;
+  height: 150px; 
+  min-width: 700px;
+  min-height: 150px;
 } */
+
+.bim360-asset-list-panel .datatable .clusterize-content td:nth-child(1) {
+  min-width: 65px;
+}
+.bim360-asset-list-panel .datatable .clusterize-content td:nth-child(2) {
+  min-width: 61px;
+}
+.bim360-asset-list-panel .datatable .clusterize-content td:nth-child(3) {
+  min-width: 297px;
+}
+.bim360-asset-list-panel .datatable .clusterize-content td:nth-child(4) {
+  min-width: 92px;
+}
+.bim360-asset-list-panel .datatable .clusterize-content td:nth-child(5) {
+  min-width: 43px;
+}
+
+.bim360-asset-list-panel .datatable .clusterize-headers #headersArea tr {
+  background-color: rgba(34,34,34,.9);
+}
+
+.docking-panel-pagination {
+  display: inline-block;
+}
+
+.docking-panel-pagination a {
+  color: #6c757d;
+  float: left;
+  padding: 1px 8px;
+  text-decoration: none;
+  transition: background-color .3s;
+}
+
+.docking-panel-pagination a.active {
+  background-color: #4a4747;
+  color: white;
+  border: 1px solid #4a4747;
+}
+
+.docking-panel-pagination a:hover:not(.active) {
+  background-color: #ddd;
+}
+
+.docking-panel-pagination a.disabled {
+  color: black;
+  pointer-events: none;
+  cursor: auto;
+}

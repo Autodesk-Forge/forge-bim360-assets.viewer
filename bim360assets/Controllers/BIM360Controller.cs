@@ -187,20 +187,20 @@ namespace bim360assets.Controllers
         public async Task<IActionResult> GetBIM360AssetsAsync(string accountId, string projectId, [FromQuery] string cursorState, [FromQuery] Nullable<int> pageLimit = null)
         {
             IRestResponse assetsResponse = await GetAssetsAsync(projectId.Replace("b.", string.Empty), cursorState, pageLimit);
-            IRestResponse usersResponse = await GetUsers(accountId);
+            //IRestResponse usersResponse = await GetUsers(accountId);
 
             var assets = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
-            var users = JsonConvert.DeserializeObject<List<User>>(usersResponse.Content);
-            var userMapping = users.ToDictionary(u => u.Uid, u => u);
-            Func<string, string> getUserName = (uid) => (!string.IsNullOrWhiteSpace(uid) && userMapping.ContainsKey(uid)) ? userMapping[uid].Name : string.Empty;
+            // var users = JsonConvert.DeserializeObject<List<User>>(usersResponse.Content);
+            // var userMapping = users.ToDictionary(u => u.Uid, u => u);
+            // Func<string, string> getUserName = (uid) => (!string.IsNullOrWhiteSpace(uid) && userMapping.ContainsKey(uid)) ? userMapping[uid].Name : string.Empty;
 
-            foreach (Asset asset in assets.Results)
-            {
-                asset.CreatedByUser = getUserName(asset.CreatedBy);
-                asset.UpdatedByUser = getUserName(asset.UpdatedBy);
-                asset.DeletedByUser = getUserName(asset.DeletedBy);
-                asset.InstalledByUser = getUserName(asset.InstalledBy);
-            }
+            // foreach (Asset asset in assets.Results)
+            // {
+            //     asset.CreatedByUser = getUserName(asset.CreatedBy);
+            //     asset.UpdatedByUser = getUserName(asset.UpdatedBy);
+            //     asset.DeletedByUser = getUserName(asset.DeletedBy);
+            //     asset.InstalledByUser = getUserName(asset.InstalledBy);
+            // }
 
             string nextUrl = null;
 
@@ -271,14 +271,14 @@ namespace bim360assets.Controllers
             if (asset == null)
                 return NotFound($"No asset with id: {assetId}");
 
-            IRestResponse usersResponse = await GetUsers(accountId);
-            var users = JsonConvert.DeserializeObject<List<User>>(usersResponse.Content);
-            var userMapping = users.ToDictionary(u => u.Uid, u => u);
-            Func<string, string> getUserName = (uid) => (!string.IsNullOrWhiteSpace(uid) && userMapping.ContainsKey(uid)) ? userMapping[uid].Name : string.Empty;
-            asset.CreatedByUser = getUserName(asset.CreatedBy);
-            asset.UpdatedByUser = getUserName(asset.UpdatedBy);
-            asset.DeletedByUser = getUserName(asset.DeletedBy);
-            asset.InstalledByUser = getUserName(asset.InstalledBy);
+            // IRestResponse usersResponse = await GetUsers(accountId);
+            // var users = JsonConvert.DeserializeObject<List<User>>(usersResponse.Content);
+            // var userMapping = users.ToDictionary(u => u.Uid, u => u);
+            // Func<string, string> getUserName = (uid) => (!string.IsNullOrWhiteSpace(uid) && userMapping.ContainsKey(uid)) ? userMapping[uid].Name : string.Empty;
+            // asset.CreatedByUser = getUserName(asset.CreatedBy);
+            // asset.UpdatedByUser = getUserName(asset.UpdatedBy);
+            // asset.DeletedByUser = getUserName(asset.DeletedBy);
+            // asset.InstalledByUser = getUserName(asset.InstalledBy);
 
             return Ok(asset);
         }

@@ -28,11 +28,12 @@
             if (!options.marginTop)
                 options.marginTop = 0;
 
+            options.addFooter = false;
+
             super(viewer.container, viewer.container.id + 'BIM360AssetListPanel', title, options);
 
             this.container.classList.add('bim360-docking-panel');
             this.container.classList.add('bim360-asset-list-panel');
-            this.createScrollContainer(options);
 
             this.viewer = viewer;
             this.options = options;
@@ -46,12 +47,12 @@
             });
         }
 
-        async getAssets() {
+        async getAssets(cursorState, limit) {
             return new Promise(async (resolve, reject) => {
                 const selected = getSelectedNode();
                 try {
                     const data = await this.getHqProjectId(selected.project);
-                    const assets = await this.getRemoteAssets(data.hubId, data.projectId);
+                    const assets = await this.getRemoteAssets(data.hubId, data.projectId, cursorState, limit);
                     resolve(assets);
                     console.log(assets);
                 } catch (ex) {
@@ -84,9 +85,23 @@
             });
         }
 
-        async getRemoteAssets(accountId, projectId) {
+        async getRemoteAssets(accountId, projectId, cursorState, limit) {
             return new Promise((resolve, reject) => {
-                fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/assets`, {
+                let query = '';
+                if (limit) {
+                    query += `pageLimit=${limit}`
+                } else {
+                    // Todo: fix back previous bug 
+                    // Todo: check cursorState meaning with asset team, current cursorState is the same with nextUrl
+                    //query += 'pageLimit=3'
+                    query += 'pageLimit=5'
+                }
+
+                if (cursorState) {
+                    query += `&cursorState=${cursorState}`
+                }
+
+                fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/assets?${query}`, {
                     method: 'get',
                     headers: new Headers({ 'Content-Type': 'application/json' })
                 })
@@ -110,24 +125,109 @@
 
         async createUI() {
             this.uiCreated = true;
+            const dataTable = new Autodesk.Viewing.UI.DataTable(this);
+            dataTable._createRows();
+            this.dataTable = dataTable;
 
-            const table = document.createElement('table');
-            table.className = 'adsk-lmv-tftable adn-lvl-section-panel-table';
+            await this.updateDataTable();
 
-            const tbody = document.createElement('tbody');
-            table.appendChild(tbody);
-            this.scrollContainer.appendChild(table);
+            this.createPagination();
+            this.updatePagination();
+        }
 
-            const assets = await this.getAssets();
+        clearDataTable() {
+            const dataTable = this.dataTable;
+            if (!dataTable) return;
+
+            while (dataTable.datatableDiv.firstChild) {
+                dataTable.datatableDiv.removeChild(dataTable.datatableDiv.lastChild);
+            }
+        }
+
+        async updateDataTable(cursorState, limit) {
+            const dataTable = this.dataTable;
+            if (!dataTable) return;
+
+            const tableHeaders = ['Asset ID', 'Category', 'Location', 'Manufacturer', 'Model', 'Status'];
+            const tableContents = [];
+            const assets = await this.getAssets(cursorState, limit);
+
+            if (!assets || assets.results.length <= 0)
+                return;
+
+            this.clearDataTable();
+
+            if (this.assets)
+                this.prevPagination = this.assets.pagination;
+
             const data = assets.results;
-            for (let i = 0; i < data.length; i++) {
-                const asset = data[i];
-                const row = tbody.insertRow(-1);
-                const nameCell = row.insertCell(0);
-                nameCell.innerText = asset.clientAssetId;
+            this.assets = assets;
+
+            while (dataTable.datatableDiv.firstChild) {
+                dataTable.datatableDiv.removeChild(dataTable.datatableDiv.lastChild);
             }
 
-            this.resizeToContent();
+            for (let i = 0; i < data.length; i++) {
+                const asset = data[i];
+                tableContents.push([
+                    asset.clientAssetId,
+                    asset.categoryId,
+                    asset.locationId,
+                    asset.manufacturer,
+                    asset.model,
+                    asset.statusId
+                ]);
+            }
+
+            dataTable.setData(tableContents, tableHeaders);
+        }
+
+        createPagination() {
+            const _document = this.getDocument();
+            const pagination = _document.createElement('div');
+            pagination.classList.add('docking-panel-pagination');
+            this.container.appendChild(pagination);
+            this.pagination = pagination;
+
+            const prevPageButton = _document.createElement('a');
+            prevPageButton.classList.add('disabled');
+            prevPageButton.innerText = '❮';
+            prevPageButton.href = '#';
+            pagination.appendChild(prevPageButton);
+            this.prevPageButton = prevPageButton;
+
+            const nextPageButton = _document.createElement('a');
+            nextPageButton.classList.add('disabled');
+            nextPageButton.innerText = '❯';
+            prevPageButton.href = '#';
+            pagination.appendChild(nextPageButton);
+            this.nextPageButton = nextPageButton;
+        }
+
+        updatePageButton(button, pagination) {
+            if (pagination && pagination.nextUrl) {
+                button.href = pagination.nextUrl;
+                button.classList.remove('disabled');
+                button.onclick = async (event) => {
+                    event.preventDefault();
+                    console.log(event);
+
+                    await this.updateDataTable(pagination.cursorState);
+                    this.updatePagination();
+                };
+            } else {
+                button.href = '#';
+                button.classList.add('disabled');
+                button.onclick = null;
+            }
+        }
+
+        updatePagination() {
+            if (!this.assets || !this.assets.pagination)
+                return;
+
+            this.updatePageButton(this.prevPageButton, this.prevPagination);
+            this.updatePageButton(this.nextPageButton, this.assets.pagination);
         }
     }
 
