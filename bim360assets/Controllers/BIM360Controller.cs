@@ -56,7 +56,7 @@ namespace bim360assets.Controllers
             return new { ContainerId = issues["id"], HubId = hubId };
         }
 
-        public async Task<IRestResponse> GetIssuesAsync(string containerId, string resource, string urn)
+        private async Task<IRestResponse> GetIssuesAsync(string containerId, string resource, string urn)
         {
             Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
             urn = Encoding.UTF8.GetString(Convert.FromBase64String(urn));
@@ -70,7 +70,7 @@ namespace bim360assets.Controllers
             return await client.ExecuteTaskAsync(request);
         }
 
-        public async Task<IRestResponse> GetUsers(string accountId)
+        private async Task<IRestResponse> GetUsers(string accountId)
         {
             TwoLeggedApi oauth = new TwoLeggedApi();
             dynamic bearer = await oauth.AuthenticateAsync(Credentials.GetAppSetting("FORGE_CLIENT_ID"), Credentials.GetAppSetting("FORGE_CLIENT_SECRET"), "client_credentials", new Scope[] { Scope.AccountRead });
@@ -106,7 +106,7 @@ namespace bim360assets.Controllers
             return issues.data;
         }
 
-        public async Task<IRestResponse> PostIssuesAsync(string containerId, string resource, JObject data)
+        private async Task<IRestResponse> PostIssuesAsync(string containerId, string resource, JObject data)
         {
             Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
 
@@ -121,7 +121,7 @@ namespace bim360assets.Controllers
             return await client.ExecuteTaskAsync(request);
         }
 
-        public async Task<IRestResponse> GetIssueTypesAsync(string containerId)
+        private async Task<IRestResponse> GetIssueTypesAsync(string containerId)
         {
             Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
 
@@ -183,24 +183,31 @@ namespace bim360assets.Controllers
         }
 
         [HttpGet]
+        [Route("api/forge/bim360/account/{accountId}/project/{projectId}/users")]
+        public async Task<IActionResult> GetBIM360ProjectUsersAsync(string accountId, [FromQuery] Nullable<int> pageOffset = null, [FromQuery] Nullable<int> pageLimit = null)
+        {
+            IRestResponse usersResponse = await GetUsers(accountId/*, pageOffset, pageLimit*/);
+            var users = JsonConvert.DeserializeObject<List<User>>(usersResponse.Content);
+            return Ok(users);
+        }
+
+        private async Task<IRestResponse> GetProjectUsers(string accountId, string projectId, Nullable<int> pageOffset = null, Nullable<int> pageLimit = null)
+        {
+            Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
+
+            RestClient client = new RestClient(BASE_URL);
+            RestRequest request = new RestRequest("/bim360/admin/v1/projects/{project_id}/users", RestSharp.Method.GET);
+            request.AddParameter("project_id", accountId.Replace("b.", string.Empty), ParameterType.UrlSegment);
+            request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
+            return await client.ExecuteTaskAsync(request);
+        }
+
+        [HttpGet]
         [Route("api/forge/bim360/account/{accountId}/project/{projectId}/assets")]
         public async Task<IActionResult> GetBIM360AssetsAsync(string accountId, string projectId, [FromQuery] string cursorState, [FromQuery] Nullable<int> pageLimit = null)
         {
             IRestResponse assetsResponse = await GetAssetsAsync(projectId.Replace("b.", string.Empty), cursorState, pageLimit);
-            //IRestResponse usersResponse = await GetUsers(accountId);
-
             var assets = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
-            // var users = JsonConvert.DeserializeObject<List<User>>(usersResponse.Content);
-            // var userMapping = users.ToDictionary(u => u.Uid, u => u);
-            // Func<string, string> getUserName = (uid) => (!string.IsNullOrWhiteSpace(uid) && userMapping.ContainsKey(uid)) ? userMapping[uid].Name : string.Empty;
-
-            // foreach (Asset asset in assets.Results)
-            // {
-            //     asset.CreatedByUser = getUserName(asset.CreatedBy);
-            //     asset.UpdatedByUser = getUserName(asset.UpdatedBy);
-            //     asset.DeletedByUser = getUserName(asset.DeletedBy);
-            //     asset.InstalledByUser = getUserName(asset.InstalledBy);
-            // }
 
             string nextUrl = null;
 
@@ -231,15 +238,15 @@ namespace bim360assets.Controllers
             {
                 Pagination = new Pagination
                 {
-                    CursorState = assets.Pagination.CursorState,
                     Limit = assets.Pagination.Limit,
+                    Offset = assets.Pagination.Offset,
+                    CursorState = assets.Pagination.CursorState,
                     NextUrl = nextUrl,
-                    TotalResults = assets.Pagination.TotalResults,
                 },
                 Results = assets.Results
             });
         }
-        public async Task<IRestResponse> GetAssetsAsync(string projectId, string cursorState, Nullable<int> pageLimit = null)
+        private async Task<IRestResponse> GetAssetsAsync(string projectId, string cursorState, Nullable<int> pageLimit = null)
         {
             Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
             RestClient client = new RestClient(BASE_URL);
@@ -260,30 +267,106 @@ namespace bim360assets.Controllers
 
             return await client.ExecuteTaskAsync(request);
         }
+
         [HttpGet]
         [Route("api/forge/bim360/account/{accountId}/project/{projectId}/assets/{assetId}")]
         public async Task<IActionResult> GetBIM360AssetByIdAsync(string accountId, string projectId, string assetId)
         {
-            IRestResponse assetsResponse = await GetAssetsByIdAsync(projectId.Replace("b.", string.Empty), new List<string> { assetId });
+            // IRestResponse assetsResponse = await GetAssetsByIdAsync(projectId.Replace("b.", string.Empty), new List<string> { assetId });
 
-            var assets = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
-            var asset = assets.Results.FirstOrDefault();
+            // var assets = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
+            // var asset = assets.Results.FirstOrDefault();
+            var asset = await GetAssetsByIdAsync(projectId.Replace("b.", string.Empty), assetId);
             if (asset == null)
                 return NotFound($"No asset with id: {assetId}");
-
-            // IRestResponse usersResponse = await GetUsers(accountId);
-            // var users = JsonConvert.DeserializeObject<List<User>>(usersResponse.Content);
-            // var userMapping = users.ToDictionary(u => u.Uid, u => u);
-            // Func<string, string> getUserName = (uid) => (!string.IsNullOrWhiteSpace(uid) && userMapping.ContainsKey(uid)) ? userMapping[uid].Name : string.Empty;
-            // asset.CreatedByUser = getUserName(asset.CreatedBy);
-            // asset.UpdatedByUser = getUserName(asset.UpdatedBy);
-            // asset.DeletedByUser = getUserName(asset.DeletedBy);
-            // asset.InstalledByUser = getUserName(asset.InstalledBy);
 
             return Ok(asset);
         }
 
-        public async Task<IRestResponse> GetAssetsByIdAsync(string projectId, List<string> assetIds)
+        private int ConvertAttributeType(Type type)
+        {
+            int viewerAttributeType = 0;
+
+            if (type == typeof(bool))
+            {
+                viewerAttributeType = 1;
+            }
+            else if (type == typeof(int))
+            {
+                viewerAttributeType = 2;
+            }
+            else if (type == typeof(double) || type == typeof(float))
+            {
+                viewerAttributeType = 3;
+            }
+            else if (type == typeof(string))
+            {
+                viewerAttributeType = 20;
+            }
+            else if (type == typeof(DateTime))
+            {
+                viewerAttributeType = 22;
+            }
+            else
+            {
+                viewerAttributeType = 0;
+            }
+
+            return viewerAttributeType;
+        }
+
+        private object ConvertToViewerProperties(Asset asset)
+        {
+            return null;
+        }
+
+        private async Task<Asset> GetAssetsByIdAsync(string projectId, string id)
+        {
+            IRestResponse assetsResponse = await GetAssetsAsync(projectId, null, null);
+            var assets = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
+
+            Asset asset = assets.Results
+                                .Where(a =>
+                                    a.Id == id ||
+                                    a.ClientAssetId == id ||
+                                    (a.CustomAttributes != null && a.CustomAttributes.Values.Any(p => p.ToString().Contains(id)))
+                                )
+                                .FirstOrDefault();
+
+            // Asset asset = null;
+            // var found = false;
+            // foreach (var a in assets.Results)
+            // {
+            //     if(found)
+            //         break;
+
+            //     if (a.Id == id || a.ClientAssetId == id)
+            //     {
+            //         asset = a;
+            //         found = true;
+            //         break;
+            //     }
+            //     else
+            //     {
+            //         if (a.CustomAttributes != null)
+            //         {
+            //             foreach (var p in a.CustomAttributes.Values)
+            //             {
+            //                 if (p.ToString().Contains(id))
+            //                 {
+            //                     asset = a;
+            //                     found = true;
+            //                     break;
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+
+            return asset;
+        }
+
+        private async Task<IRestResponse> GetAssetsByIdAsync(string projectId, List<string> ids)
         {
             Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
             RestClient client = new RestClient(BASE_URL);
@@ -294,7 +377,7 @@ namespace bim360assets.Controllers
 
             var data = new
             {
-                ids = assetIds
+                ids = ids
             };
             request.AddParameter("application/json", Newtonsoft.Json.JsonConvert.SerializeObject(data), ParameterType.RequestBody);
 

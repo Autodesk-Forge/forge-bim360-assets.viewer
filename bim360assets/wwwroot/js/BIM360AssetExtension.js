@@ -90,11 +90,11 @@
                 let query = '';
                 if (limit) {
                     query += `pageLimit=${limit}`
-                } else {
-                    // Todo: fix back previous bug 
-                    // Todo: check cursorState meaning with asset team, current cursorState is the same with nextUrl
-                    //query += 'pageLimit=3'
-                    query += 'pageLimit=5'
+                    // } else {
+                    //     // Todo: fix back previous bug 
+                    //     // Todo: check cursorState meaning with asset team, current cursorState is the same with nextUrl
+                    //     //query += 'pageLimit=3'
+                    //     query += 'pageLimit=5'
                 }
 
                 if (cursorState) {
@@ -102,6 +102,44 @@
                 }
 
                 fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/assets?${query}`, {
+                    method: 'get',
+                    headers: new Headers({ 'Content-Type': 'application/json' })
+                })
+                    .then((response) => {
+                        if (response.status === 200) {
+                            return response.json();
+                        } else {
+                            return reject(
+                                new Error(`Failed to fetch BIM360 Assets from server (status: ${response.status}, message: ${response.statusText})`)
+                            );
+                        }
+                    })
+                    .then((data) => {
+                        if (!data) return reject(new Error('Empty response'));
+
+                        resolve(data);
+                    })
+                    .catch((error) => reject(error));
+            });
+        }
+
+        async getUsers() {
+            return new Promise(async (resolve, reject) => {
+                const selected = getSelectedNode();
+                try {
+                    const data = await this.getHqProjectId(selected.project);
+                    const users = await this.getRemoteUsers(data.hubId, data.projectId);
+                    resolve(users);
+                    console.log(users);
+                } catch (ex) {
+                    reject(new Error(ex));
+                }
+            });
+        }
+
+        async getRemoteUsers(accountId, projectId) {
+            return new Promise((resolve, reject) => {
+                fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/users`, {
                     method: 'get',
                     headers: new Headers({ 'Content-Type': 'application/json' })
                 })
@@ -151,8 +189,11 @@
             const tableHeaders = ['Asset ID', 'Category', 'Location', 'Manufacturer', 'Model', 'Status'];
             const tableContents = [];
             const assets = await this.getAssets(cursorState, limit);
-
             if (!assets || assets.results.length <= 0)
+                return;
+
+            const users = await this.getUsers();
+            if (!users || users.length <= 0)
                 return;
 
             this.clearDataTable();
@@ -184,9 +225,13 @@
 
         createPagination() {
             const _document = this.getDocument();
+            const footer = _document.createElement('div');
+            footer.classList.add('docking-panel-footer');
+            this.container.appendChild(footer);
+
             const pagination = _document.createElement('div');
             pagination.classList.add('docking-panel-pagination');
-            this.container.appendChild(pagination);
+            footer.appendChild(pagination);
             this.pagination = pagination;
 
             const prevPageButton = _document.createElement('a');
@@ -231,6 +276,139 @@
         }
     }
 
+    class BIM360AssetInfoPanel extends Autodesk.Viewing.Extensions.ViewerPropertyPanel {
+        constructor(viewer) {
+            super(viewer);
+        }
+
+        async getAssetInfo(assetId) {
+            return new Promise(async (resolve, reject) => {
+                const selected = getSelectedNode();
+                try {
+                    const data = await this.getHqProjectId(selected.project);
+                    const users = await this.getRemoteAssetInfo(data.hubId, data.projectId, assetId);
+                    resolve(users);
+                    console.log(users);
+                } catch (ex) {
+                    reject(new Error(ex));
+                }
+            });
+        }
+
+        async getRemoteAssetInfo(accountId, projectId, assetId) {
+            return new Promise((resolve, reject) => {
+                fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/assets/${assetId}`, {
+                    method: 'get',
+                    headers: new Headers({
+                        'Content-Type': 'application/json'
+                    })
+                })
+                    .then((response) => {
+                        if (response.status === 200) {
+                            return response.json();
+                        } else {
+                            return reject(new Error(response.statusText));
+                        }
+                    })
+                    .then((data) => {
+                        if (!data) return reject(new Error('Failed to fetch asset info from the server'));
+
+                        return resolve(data);
+                    })
+                    .catch((error) => reject(new Error(error)));
+            });
+        }
+
+        async getAssetId(dbId) {
+            return new Promise((resolve, reject) => {
+                this.currentModel.getProperties(
+                    dbId,
+                    (result) => resolve(result.externalId),
+                    (error) => reject(error)
+                );
+            });
+        }
+
+        async formatProps(dbId) {
+            const assetId = await this.getAssetId(dbId);
+            const result = await this.getRemoteAssetInfo(accountId, projectId, assetId);
+
+            const props = [];
+            for (let i = 0; i < result.length; ++i) {
+                const data = result[i];
+                props.push({
+                    attributeName: data.name,
+                    displayCategory: data.category,
+                    displayName: data.displayName,
+                    displayValue: data.value,
+                    hidden: 0,
+                    precision: 0,
+                    type: data.dataType.serial,
+                    units: null
+                });
+            }
+
+            return {
+                dbId,
+                name: `Asset [${result.clientAssetId}]`,
+                externalId: result.id,
+                properties: props
+            };
+        }
+
+        async requestNodeProperties(dbId) {
+            this.propertyNodeId = dbId;
+
+            if (!this.viewer) return;
+
+            try {
+                const result = await this.formatProps(dbId);
+
+                this.setTitle(result.name, { localizeTitle: true });
+                this.setProperties(result.properties);
+
+                this.resizeToContent();
+
+                if (this.isVisible()) {
+                    const toolController = this.viewer.toolController,
+                        mx = toolController.lastClickX,
+                        my = toolController.lastClickY,
+                        panelRect = this.container.getBoundingClientRect(),
+                        px = panelRect.left,
+                        py = panelRect.top,
+                        pw = panelRect.width,
+                        ph = panelRect.height,
+                        canvasRect = this.viewer.canvas.getBoundingClientRect(),
+                        cx = canvasRect.left,
+                        cy = canvasRect.top,
+                        cw = canvasRect.width,
+                        ch = canvasRect.height;
+
+                    if ((px <= mx && mx < px + pw) && (py <= my && my < py + ph)) {
+                        if ((mx < px + (pw / 2)) && (mx + pw) < (cx + cw)) {
+                            this.container.style.left = Math.round(mx - cx) + 'px';
+                            this.container.dockRight = false;
+                        } else if (cx <= (mx - pw)) {
+                            this.container.style.left = Math.round(mx - cx - pw) + 'px';
+                            this.container.dockRight = false;
+                        } else if ((mx + pw) < (cx + cw)) {
+                            this.container.style.left = Math.round(mx - cx) + 'px';
+                            this.container.dockRight = false;
+                        } else if ((my + ph) < (cy + ch)) {
+                            this.container.style.top = Math.round(my - cy) + 'px';
+                            this.container.dockBottom = false;
+                        } else if (cy <= (my - ph)) {
+                            this.container.style.top = Math.round(my - cy - ph) + 'px';
+                            this.container.dockBottom = false;
+                        }
+                    }
+                }
+            } catch (error) {
+                this.showDefaultProperties();
+            }
+        }
+    }
+
     class BIM360AssetExtension extends Autodesk.Viewing.Extension {
         constructor(viewer, options) {
             super(viewer, options);
@@ -253,23 +431,28 @@
             const viewer = this.viewer;
 
             const assetListPanel = new BIM360AssetListPanel(viewer, 'Assets');
-
             viewer.addPanel(assetListPanel);
-            this.panel = assetListPanel;
+            this.assetListPanel = assetListPanel;
+
+            const assetInfoPanel = new BIM360AssetInfoPanel(viewer);
+            viewer.addPanel(assetInfoPanel);
+            this.assetInfoPanel = assetInfoPanel;
 
             const assetListButton = new Autodesk.Viewing.UI.Button('toolbar-bim360AssetList');
             assetListButton.setToolTip('Asset List');
-            assetListButton.setIcon('adsk-icon-properties');
+            assetListButton.icon.classList.add('glyphicon');
+            assetListButton.icon.classList.add('glyphicon-bim360-icon');
+            assetListButton.setIcon('glyphicon-list-alt');
             assetListButton.onClick = function () {
                 assetListPanel.setVisible(!assetListPanel.isVisible());
             };
 
-            const subToolbar = new Autodesk.Viewing.UI.ControlGroup('toolbar-bim360-tools');
-            subToolbar.addControl(assetListButton);
-            subToolbar.assetListButton = assetListButton;
-            this.subToolbar = subToolbar;
-
-            viewer.toolbar.addControl(this.subToolbar);
+            const assetInfoButton = new Autodesk.Viewing.UI.Button('toolbar-bim360AssetInfo');
+            assetInfoButton.setToolTip('Asset Info');
+            assetInfoButton.setIcon('adsk-icon-properties');
+            assetInfoButton.onClick = function () {
+                assetInfoPanel.setVisible(!assetInfoPanel.isVisible());
+            };
 
             assetListPanel.addVisibilityListener(function (visible) {
                 if (visible)
@@ -277,6 +460,22 @@
 
                 assetListButton.setState(visible ? Autodesk.Viewing.UI.Button.State.ACTIVE : Autodesk.Viewing.UI.Button.State.INACTIVE);
             });
+
+            assetInfoPanel.addVisibilityListener(function (visible) {
+                if (visible)
+                    viewer.onPanelVisible(assetInfoPanel, viewer);
+
+                assetInfoButton.setState(visible ? Autodesk.Viewing.UI.Button.State.ACTIVE : Autodesk.Viewing.UI.Button.State.INACTIVE);
+            });
+
+            const subToolbar = new Autodesk.Viewing.UI.ControlGroup('toolbar-bim360-tools');
+            subToolbar.addControl(assetListButton);
+            subToolbar.addControl(assetInfoButton);
+            subToolbar.assetListButton = assetListButton;
+            subToolbar.assetInfoButton = assetInfoButton;
+            this.subToolbar = subToolbar;
+
+            viewer.toolbar.addControl(this.subToolbar);
         }
 
         load() {
@@ -295,10 +494,18 @@
         }
 
         unload() {
-            if (this.panel) {
-                this.panel.uninitialize();
-                delete this.panel;
-                this.panel = null;
+            if (this.assetListPanel) {
+                this.viewer.removePanel(this.assetListPanel);
+                this.assetListPanel.uninitialize();
+                delete this.assetListPanel;
+                this.assetListPanel = null;
+            }
+
+            if (this.assetInfoPanel) {
+                this.viewer.removePanel(this.assetInfoPanel);
+                this.assetInfoPanel.uninitialize();
+                delete this.assetInfoPanel;
+                this.assetInfoPanel = null;
             }
 
             if (this.subToolbar) {

@@ -19,7 +19,7 @@
 using System;
 using Newtonsoft.Json;
 using System.ComponentModel.DataAnnotations;
-using Newtonsoft.Json.Linq;
+using System.Collections.Generic;
 using bim360assets.Libs;
 
 namespace bim360assets.Models
@@ -122,7 +122,7 @@ namespace bim360assets.Models
         /// <summary>
         /// The Asset Custom Attribute values of this Asset. Can be any JSON blob with values that are compatible with the Asset Custom Attributes assigned to this Asset. For “text” dataType, the value is a string. For “date” dataType, the value is an ISO8601 date string with no time, e.g. “2020-04-10”. For “select” dataType, the value is a valid string from the list of allowed enum values. For “multi-select” dataType, the value is an array of strings from the list of allowed enum values. For “boolean” dataType, the value is a boolean. For “numeric” dataType, the value is a string that parses as a valid floating point number (not localized).
         /// </summary>
-        public JObject CustomAttributes { get; set; }
+        public Dictionary<string, object> CustomAttributes { get; set; }
         /// <summary>
         /// The asset's default company ID in BIM 360
         /// </summary>

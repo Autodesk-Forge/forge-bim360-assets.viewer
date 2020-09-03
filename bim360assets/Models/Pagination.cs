@@ -36,8 +36,8 @@ namespace bim360assets.Models
         /// </summary>
         public string NextUrl { get; set; }
         /// <summary>
-        /// Total number of results available
+        /// Page Offset
         /// </summary>
-        public int TotalResults { get; set; }
+        public int Offset { get; set; }
     }
 }

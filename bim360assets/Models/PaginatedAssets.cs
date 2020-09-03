@@ -25,6 +25,11 @@ namespace bim360assets.Models
     /// </summary>
     public class PaginatedAssets
     {
+        public PaginatedAssets()
+        {
+            this.Results = new List<Asset>();
+        }
+
         /// <summary>
         /// Page info
         /// </summary>
