@@ -16,32 +16,25 @@
 // UNINTERRUPTED OR ERROR FREE.
 /////////////////////////////////////////////////////////////////////
 
+using System;
+using Newtonsoft.Json;
+using System.ComponentModel.DataAnnotations;
+using System.Collections.Generic;
+using bim360assets.Libs;
+
 namespace bim360assets.Models
 {
     /// <summary>
-    /// Pagination
+    /// Asset Status
     /// </summary>
-    public class Pagination
-    {
-        /// <summary>
-        /// An opaque, unique key element that identifies the first entry in the page.
-        /// </summary>
-        public string CursorState { get; set; }
-        /// <summary>
-        /// The maximum number of objects that MAY be returned. A query MAY return fewer than the value of limit due to filtering or other reasons.
-        /// </summary>
-        public int Limit { get; set; }
-        /// <summary>
-        /// URL for the next paginated request
-        /// </summary>
-        public string NextUrl { get; set; }
-        /// <summary>
-        /// URL for the previous paginated request
-        /// </summary>
-        public string PreviousUrl { get; set; }
-        /// <summary>
-        /// Page Offset
-        /// </summary>
-        public int Offset { get; set; }
+    public class AssetStatus : AssetStatusBase {
+       public AssetStatus() {
+           this.Values = new List<SubAssetStatus>();
+       }
+
+       /// <summary>
+       /// The list of Asset Statuses belonging to this Status Set
+       /// </summary>
+       public List<SubAssetStatus> Values { get; set; }
     }
 }

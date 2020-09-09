@@ -63,12 +63,22 @@ body {
   min-width: 700px;
   min-height: 150px;
 } */
-
+.bim360-asset-list-panel .datatable .clusterize-content th:nth-child(2) {
+  /* min-width: 395px !important; */
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .bim360-asset-list-panel .datatable .clusterize-content td:nth-child(1) {
   min-width: 65px;
 }
 .bim360-asset-list-panel .datatable .clusterize-content td:nth-child(2) {
-  min-width: 61px;
+  /* min-width: 61px; */
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .bim360-asset-list-panel .datatable .clusterize-content td:nth-child(3) {
   min-width: 297px;

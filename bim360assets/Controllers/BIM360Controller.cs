@@ -193,12 +193,13 @@ namespace bim360assets.Controllers
 
         private async Task<IRestResponse> GetProjectUsers(string accountId, string projectId, Nullable<int> pageOffset = null, Nullable<int> pageLimit = null)
         {
-            Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
+            TwoLeggedApi oauth = new TwoLeggedApi();
+            dynamic bearer = await oauth.AuthenticateAsync(Credentials.GetAppSetting("FORGE_CLIENT_ID"), Credentials.GetAppSetting("FORGE_CLIENT_SECRET"), "client_credentials", new Scope[] { Scope.AccountRead });
 
             RestClient client = new RestClient(BASE_URL);
             RestRequest request = new RestRequest("/bim360/admin/v1/projects/{project_id}/users", RestSharp.Method.GET);
-            request.AddParameter("project_id", accountId.Replace("b.", string.Empty), ParameterType.UrlSegment);
-            request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
+            request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
+            request.AddHeader("Authorization", "Bearer " + bearer.access_token);
             return await client.ExecuteTaskAsync(request);
         }
 
@@ -206,7 +207,7 @@ namespace bim360assets.Controllers
         [Route("api/forge/bim360/account/{accountId}/project/{projectId}/assets")]
         public async Task<IActionResult> GetBIM360AssetsAsync(string accountId, string projectId, [FromQuery] string cursorState, [FromQuery] Nullable<int> pageLimit = null)
         {
-            IRestResponse assetsResponse = await GetAssetsAsync(projectId.Replace("b.", string.Empty), cursorState, pageLimit);
+            IRestResponse assetsResponse = await GetAssetsAsync(projectId, cursorState, pageLimit);
             var assets = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
 
             string nextUrl = null;
@@ -234,6 +235,36 @@ namespace bim360assets.Controllers
                 nextUrl = QueryHelpers.AddQueryString(nextUrl, queries);
             }
 
+            //!-- Workaround: Navigating to previous page
+            string previousUrl = null;
+            if (assets.Pagination.Offset > 0)
+            {
+                var offest = assets.Pagination.Offset - assets.Pagination.Limit;
+                var prevCursorState = new {
+                    offset = offest <= 0 ? 0 : offest,
+                    limit = assets.Pagination.Limit
+                };
+                var prevCursorStateStr = JsonConvert.SerializeObject(prevCursorState);
+                var encodedPrevCursorStateStr = Convert.ToBase64String(Encoding.UTF8.GetBytes(prevCursorStateStr));
+
+                var queries = new Dictionary<string, string>
+                {
+                    { "cursorState", encodedPrevCursorStateStr }
+                };
+
+                if (pageLimit.HasValue)
+                {
+                    queries.Add("pageLimit", pageLimit.Value.ToString());
+                }
+
+                previousUrl = UriHelper.BuildAbsolute(
+                    HttpContext.Request.Scheme,
+                    HttpContext.Request.Host,
+                    HttpContext.Request.Path
+                );
+                previousUrl = QueryHelpers.AddQueryString(previousUrl, queries);
+            }
+
             return Ok(new
             {
                 Pagination = new Pagination
@@ -241,6 +272,7 @@ namespace bim360assets.Controllers
                     Limit = assets.Pagination.Limit,
                     Offset = assets.Pagination.Offset,
                     CursorState = assets.Pagination.CursorState,
+                    PreviousUrl = previousUrl,
                     NextUrl = nextUrl,
                 },
                 Results = assets.Results
@@ -251,7 +283,7 @@ namespace bim360assets.Controllers
             Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
             RestClient client = new RestClient(BASE_URL);
             RestRequest request = new RestRequest("/bim360/assets/v1/projects/{project_id}/assets", RestSharp.Method.GET);
-            request.AddParameter("project_id", projectId, ParameterType.UrlSegment);
+            request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
             request.AddParameter("includeCustomAttributes", true, ParameterType.QueryString);
             request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
 
@@ -272,11 +304,11 @@ namespace bim360assets.Controllers
         [Route("api/forge/bim360/account/{accountId}/project/{projectId}/assets/{assetId}")]
         public async Task<IActionResult> GetBIM360AssetByIdAsync(string accountId, string projectId, string assetId)
         {
-            // IRestResponse assetsResponse = await GetAssetsByIdAsync(projectId.Replace("b.", string.Empty), new List<string> { assetId });
+            // IRestResponse assetsResponse = await GetAssetsByIdAsync(projectId, new List<string> { assetId });
 
             // var assets = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
             // var asset = assets.Results.FirstOrDefault();
-            var asset = await GetAssetsByIdAsync(projectId.Replace("b.", string.Empty), assetId);
+            var asset = await GetAssetsByIdAsync(projectId, assetId);
             if (asset == null)
                 return NotFound($"No asset with id: {assetId}");
 
@@ -322,7 +354,7 @@ namespace bim360assets.Controllers
 
         private async Task<Asset> GetAssetsByIdAsync(string projectId, string id)
         {
-            IRestResponse assetsResponse = await GetAssetsAsync(projectId, null, null);
+            IRestResponse assetsResponse = await GetAssetsAsync(projectId.Replace("b.", string.Empty), null, null);
             var assets = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
 
             Asset asset = assets.Results
@@ -371,7 +403,7 @@ namespace bim360assets.Controllers
             Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
             RestClient client = new RestClient(BASE_URL);
             RestRequest request = new RestRequest("/bim360/assets/v1/projects/{project_id}/assets:batch-get", RestSharp.Method.POST);
-            request.AddParameter("project_id", projectId, ParameterType.UrlSegment);
+            request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
             request.AddParameter("includeCustomAttributes", true, ParameterType.QueryString);
             request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
 
@@ -380,6 +412,74 @@ namespace bim360assets.Controllers
                 ids = ids
             };
             request.AddParameter("application/json", Newtonsoft.Json.JsonConvert.SerializeObject(data), ParameterType.RequestBody);
+
+            return await client.ExecuteTaskAsync(request);
+        }
+
+        [HttpGet]
+        [Route("api/forge/bim360/account/{accountId}/project/{projectId}/asset-categories")]
+        public async Task<IActionResult> GetBIM360AssetCategoriesAsync(string accountId, string projectId, [FromQuery] string cursorState, [FromQuery] Nullable<int> pageLimit = null, [FromQuery] bool buildTree = false)
+        {
+            IRestResponse categoriesResponse = await GetAssetCategoriesAsync(projectId.Replace("b.", string.Empty), cursorState, pageLimit);
+            var categories = JsonConvert.DeserializeObject<PaginatedAssetCategories>(categoriesResponse.Content);
+
+            if(buildTree == false) {
+                return Ok(categories.Results);
+            } else {
+                var root = categories.Results.FirstOrDefault();
+                var tree = AssetCategory.BuildTree(categories.Results, root.Id);
+                return Ok(tree);
+            }
+        }
+
+        private async Task<IRestResponse> GetAssetCategoriesAsync(string projectId, string cursorState, Nullable<int> pageLimit = null)
+        {
+            Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
+            RestClient client = new RestClient(BASE_URL);
+            RestRequest request = new RestRequest("/bim360/assets/v1/projects/{project_id}/categories", RestSharp.Method.GET);
+            request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
+            request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
+
+            if (!string.IsNullOrWhiteSpace(cursorState))
+            {
+                request.AddParameter("cursorState", cursorState, ParameterType.QueryString);
+            }
+
+            if (pageLimit != null && pageLimit.HasValue)
+            {
+                request.AddParameter("limit", pageLimit.Value, ParameterType.QueryString);
+            }
+
+            return await client.ExecuteTaskAsync(request);
+        }
+
+        [HttpGet]
+        [Route("api/forge/bim360/account/{accountId}/project/{projectId}/asset-statuses")]
+        public async Task<IActionResult> GetBIM360AssetStatusesAsync(string accountId, string projectId, [FromQuery] string cursorState, [FromQuery] Nullable<int> pageLimit = null)
+        {
+            IRestResponse statusesResponse = await GetAssetStatusessAsync(projectId, cursorState, pageLimit);
+            var statuses = JsonConvert.DeserializeObject<PaginatedAssetStatuses>(statusesResponse.Content);
+
+            return Ok(statuses.Results);
+        }
+
+        private async Task<IRestResponse> GetAssetStatusessAsync(string projectId, string cursorState, Nullable<int> pageLimit = null)
+        {
+            Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
+            RestClient client = new RestClient(BASE_URL);
+            RestRequest request = new RestRequest("/bim360/assets/v1/projects/{project_id}/status-step-sets", RestSharp.Method.GET);
+            request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
+            request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
+
+            if (!string.IsNullOrWhiteSpace(cursorState))
+            {
+                request.AddParameter("cursorState", cursorState, ParameterType.QueryString);
+            }
+
+            if (pageLimit != null && pageLimit.HasValue)
+            {
+                request.AddParameter("limit", pageLimit.Value, ParameterType.QueryString);
+            }
 
             return await client.ExecuteTaskAsync(request);
         }

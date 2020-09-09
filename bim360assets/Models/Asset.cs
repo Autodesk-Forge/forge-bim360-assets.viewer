@@ -54,9 +54,17 @@ namespace bim360assets.Models
         /// </summary>
         public string CategoryId { get; set; }
         /// <summary>
+        /// The Category the Asset belongs to
+        /// </summary>
+        public string Category { get; set; }
+        /// <summary>
         /// ID of the Asset Status assigned to the Asset
         /// </summary>
         public string StatusId { get; set; }
+        /// <summary>
+        /// The Asset Status assigned to the Asset
+        /// </summary>
+        public string Status { get; set; }
         /// <summary>
         /// Brief description
         /// </summary>
@@ -65,6 +73,10 @@ namespace bim360assets.Models
         /// ID of the Location of the Asset (references Locations API)
         /// </summary>
         public string LocationId { get; set; }
+        /// <summary>
+        /// The Location of the Asset (references Locations API)
+        /// </summary>
+        public string Location { get; set; }
         /// <summary>
         /// Barcode
         /// </summary>

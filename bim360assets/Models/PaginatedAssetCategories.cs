@@ -16,32 +16,28 @@
 // UNINTERRUPTED OR ERROR FREE.
 /////////////////////////////////////////////////////////////////////
 
+using System.Collections.Generic;
+
 namespace bim360assets.Models
 {
     /// <summary>
-    /// Pagination
+    /// PaginatedAssetCategories
     /// </summary>
-    public class Pagination
+    public class PaginatedAssetCategories
     {
+        public PaginatedAssetCategories()
+        {
+            this.Results = new List<AssetCategory>();
+        }
+
         /// <summary>
-        /// An opaque, unique key element that identifies the first entry in the page.
+        /// Page info
         /// </summary>
-        public string CursorState { get; set; }
+        public Pagination Pagination { get; set; }
+
         /// <summary>
-        /// The maximum number of objects that MAY be returned. A query MAY return fewer than the value of limit due to filtering or other reasons.
+        /// An array of assets
         /// </summary>
-        public int Limit { get; set; }
-        /// <summary>
-        /// URL for the next paginated request
-        /// </summary>
-        public string NextUrl { get; set; }
-        /// <summary>
-        /// URL for the previous paginated request
-        /// </summary>
-        public string PreviousUrl { get; set; }
-        /// <summary>
-        /// Page Offset
-        /// </summary>
-        public int Offset { get; set; }
+        public List<AssetCategory> Results { get; set; }
     }
 }
