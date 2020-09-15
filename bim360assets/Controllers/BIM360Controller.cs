@@ -304,33 +304,36 @@ namespace bim360assets.Controllers
 
         [HttpGet]
         [Route("api/forge/bim360/account/{accountId}/project/{projectId}/assets/{assetId}")]
-        public async Task<IActionResult> GetBIM360AssetByIdAsync(string accountId, string projectId, string assetId)
+        public async Task<IActionResult> GetBIM360AssetByIdAsync(string accountId, string projectId, string assetId, [FromQuery] bool flatten = false)
         {
-            // IRestResponse assetsResponse = await GetAssetsByIdAsync(projectId, new List<string> { assetId });
-
-            // var assets = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
-            // var asset = assets.Results.FirstOrDefault();
             var asset = await GetAssetsByIdAsync(projectId, assetId);
             if (asset == null)
                 return NotFound($"No asset with id: {assetId}");
 
-            IRestResponse usersResponse = await GetUsers(accountId);
-            var users = JsonConvert.DeserializeObject<List<User>>(usersResponse.Content);
-            var userMapping = users.ToDictionary(u => u.Uid, u => u);
-            Func<string, string> getUserName = (uid) => (!string.IsNullOrWhiteSpace(uid) && userMapping.ContainsKey(uid)) ? userMapping[uid].Name : string.Empty;
-            asset.CreatedByUser = getUserName(asset.CreatedBy);
-            asset.UpdatedByUser = getUserName(asset.UpdatedBy);
-            asset.DeletedByUser = getUserName(asset.DeletedBy);
-            asset.InstalledByUser = getUserName(asset.InstalledBy);
-
-            var properties = await this.FlatProperties(asset, projectId);
-
-            return Ok(new
+            if (!flatten)
             {
-                id = asset.Id,
-                externalId = asset.ClientAssetId,
-                properties
-            });
+                return Ok(asset);
+            }
+            else
+            {
+                IRestResponse usersResponse = await GetUsers(accountId);
+                var users = JsonConvert.DeserializeObject<List<User>>(usersResponse.Content);
+                var userMapping = users.ToDictionary(u => u.Uid, u => u);
+                Func<string, string> getUserName = (uid) => (!string.IsNullOrWhiteSpace(uid) && userMapping.ContainsKey(uid)) ? userMapping[uid].Name : string.Empty;
+                asset.CreatedByUser = getUserName(asset.CreatedBy);
+                asset.UpdatedByUser = getUserName(asset.UpdatedBy);
+                asset.DeletedByUser = getUserName(asset.DeletedBy);
+                asset.InstalledByUser = getUserName(asset.InstalledBy);
+
+                var properties = await this.FlatProperties(asset, projectId);
+
+                return Ok(new
+                {
+                    id = asset.Id,
+                    externalId = asset.ClientAssetId,
+                    properties
+                });
+            }
         }
 
         private int ConvertAttributeType(Type type)
@@ -364,7 +367,6 @@ namespace bim360assets.Controllers
 
             return viewerAttributeType;
         }
-
 
         private async Task<List<ViewerProperty>> FlatProperties(Dictionary<string, object> customAttributes, string projectId)
         {
@@ -480,6 +482,16 @@ namespace bim360assets.Controllers
             #endregion
 
             return asset;
+        }
+
+        [HttpGet]
+        [Route("api/forge/bim360/account/{accountId}/project/{projectId}/asset-custom-attr-defs")]
+        public async Task<IActionResult> GetBIM360CustomAttributeDefsAsync(string accountId, string projectId, [FromQuery] bool buildTree = false)
+        {
+            var attrDefsResponse = await GetCustomAttributeDefsAsync(projectId.Replace("b.", string.Empty));
+            var attrDefs = JsonConvert.DeserializeObject<PaginatedAssetCustomAttributes>(attrDefsResponse.Content);
+
+            return Ok(attrDefs.Results);
         }
 
         private async Task<IRestResponse> GetCustomAttributeDefsAsync(string projectId)
@@ -611,7 +623,7 @@ namespace bim360assets.Controllers
             var relationships = project.data.relationships;
             string containerId = string.Empty;
 
-            var result = relationships.Dictionary;//.GetType().GetProperty("Dictionary").GetValue(relationships, null);
+            var result = relationships.Dictionary;
 
             foreach (var relation in result)
             {
@@ -620,9 +632,9 @@ namespace bim360assets.Controllers
                     continue;
 
                 var data = relation.Value.data;
-                if(data == null || !data.type.Contains(type.Value))
+                if (data == null || !data.type.Contains(type.Value))
                     continue;
-                
+
                 containerId = data.id;
             }
 

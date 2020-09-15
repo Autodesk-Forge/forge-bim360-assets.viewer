@@ -34,6 +34,7 @@
             this.users = null;
             this.statuses = null;
             this.categories = null;
+            this.customAttrDefs = null;
             this.locations = null;
         }
 
@@ -47,6 +48,9 @@
             while (this.categories.length > 0) {
                 this.categories.pop();
             }
+            while (this.customAttrDefs.length > 0) {
+                this.customAttrDefs.pop();
+            }
             while (this.locations.length > 0) {
                 this.locations.pop();
             }
@@ -54,6 +58,7 @@
             this.users = null;
             this.statuses = null;
             this.categories = null;
+            this.customAttrDefs = null;
             this.locations = null;
         }
 
@@ -62,6 +67,7 @@
                 this.users = await this.getUsers();
                 this.statuses = await this.getAssetStatuses();
                 this.categories = await this.getAssetCategories();
+                this.customAttrDefs = await this.getAssetCustomAttributeDefs();
                 this.locations = await this.getLocations();
             } catch (ex) {
                 console.warn(`[BIM360DataProvider]: ${ex}`);
@@ -98,8 +104,13 @@
                 try {
                     const data = await this.getHqProjectId(selected.project);
                     const users = await this.getRemoteUsers(data.hubId, data.projectId);
-                    resolve(users);
-                    console.log(users);
+                    const userMap = {};
+                    for (let i = 0; i < users.length; i++) {
+                        const user = users[i];
+                        userMap[user.uid] = user;
+                    }
+                    resolve(userMap);
+                    console.log(userMap);
                 } catch (ex) {
                     reject(ex);
                 }
@@ -320,14 +331,153 @@
             });
         }
 
+        async getAssetCustomAttributeDefs() {
+            return new Promise(async (resolve, reject) => {
+                const selected = getSelectedNode();
+                try {
+                    const data = await this.getHqProjectId(selected.project);
+                    const customAttrDefs = await this.getRemoteAssetCustomAttributeDefs(data.hubId, data.projectId);
+                    const customAttrDefMap = {};
+
+                    for (let i = 0; i < customAttrDefs.length; i++) {
+                        const attrDef = customAttrDefs[i];
+                        customAttrDefMap[attrDef.name] = attrDef;
+                    }
+                    console.log(customAttrDefMap);
+                    resolve(customAttrDefMap);
+                } catch (ex) {
+                    reject(new Error(ex));
+                }
+            });
+        }
+
+        async getRemoteAssetCustomAttributeDefs(accountId, projectId) {
+            return new Promise((resolve, reject) => {
+                fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/asset-custom-attr-defs`, {
+                    method: 'get',
+                    headers: new Headers({ 'Content-Type': 'application/json' })
+                })
+                    .then((response) => {
+                        if (response.status === 200) {
+                            return response.json();
+                        } else {
+                            return reject(
+                                new Error(`Failed to fetch BIM360 Asset Custom Attribute Definitions from server (status: ${response.status}, message: ${response.statusText})`)
+                            );
+                        }
+                    })
+                    .then((data) => {
+                        if (!data) return reject(new Error('Empty response'));
+
+                        resolve(data);
+                    })
+                    .catch((error) => reject(error));
+            });
+        }
+
+        mapAttributeType(val) {
+            const type = typeof (val);
+            let viewerAttributeType = 0;
+
+            if (type === 'boolean') {
+                viewerAttributeType = 1;
+            } else if (type === 'number') {
+                if (val % 1 === 0) {
+                    viewerAttributeType = 2;
+                } else {
+                    viewerAttributeType = 3;
+                }
+            } else if (type === 'string') {
+                viewerAttributeType = 20;
+            } else {
+                viewerAttributeType = 0;
+            }
+
+            return viewerAttributeType;
+        }
+
+        mapIdToName(asset) {
+            const createdByUser = this.users[asset.createdBy];
+            const updatedByUser = this.users[asset.updatedBy]
+            const deletedByUser = this.users[asset.deletedBy];
+            const installedByUser = this.users[asset.installedBy];
+            const status = this.statuses[asset.statusId];
+            const category = this.categories[asset.categoryId];
+            const location = this.locations[asset.locationId];
+
+            asset.createdByUser = createdByUser ? createdByUser.name : '';
+            asset.updatedByUser = updatedByUser ? updatedByUser.name : '';
+            asset.deletedByUser = deletedByUser ? deletedByUser.name : '';
+            asset.installedByUser = installedByUser ? installedByUser.name : '';
+            asset.status = status ? status.label : '';
+            asset.category = category || '';
+            asset.location = location || '';
+        }
+
+        flatCustomAttributes(data) {
+            const props = [];
+            for (let attrName in data) {
+                const attrVal = data[attrName];
+                const attrDef = this.customAttrDefs[attrName];
+                const attrType = this.mapAttributeType(attrVal);
+                const prop = {
+                    attributeName: attrName,
+                    displayCategory: "Custom",
+                    displayName: attrDef.displayName,
+                    displayValue: attrVal,
+                    hidden: 0,
+                    precision: 0,
+                    type: attrType,
+                    units: null
+                };
+                props.push(prop);
+            }
+            return props;
+        }
+
+        flatProperties(data) {
+            this.mapIdToName(data);
+
+            const props = [];
+            for (let attrName in data) {
+                const attrVal = data[attrName];
+
+                if (attrName === 'customAttributes') {
+                    let flattenCustomAttrs = this.flatCustomAttributes(attrVal);
+                    props.push(...flattenCustomAttrs);
+                    continue;
+                }
+
+                const isHidden = (attrName.toLowerCase().endsWith('id') || attrName.toLowerCase().endsWith('by')) ? 1 : 0;
+                const attrType = this.mapAttributeType(attrVal);
+                const prop = {
+                    attributeName: attrName,
+                    displayCategory: 'Built In',
+                    displayName: attrName.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase()),
+                    displayValue: attrVal,
+                    hidden: isHidden,
+                    precision: 0,
+                    type: attrType,
+                    units: null
+                };
+                props.push(prop);
+            }
+            return props;
+        }
+
         async getAssetInfo(assetId) {
             return new Promise(async (resolve, reject) => {
                 const selected = getSelectedNode();
                 try {
                     const data = await this.getHqProjectId(selected.project);
-                    const users = await this.getRemoteAssetInfo(data.hubId, data.projectId, assetId);
-                    resolve(users);
-                    console.log(users);
+                    const asset = await this.getRemoteAssetInfo(data.hubId, data.projectId, assetId);
+                    const props = {
+                        id: asset.id,
+                        externalId: asset.clientAssetId,
+                        properties: this.flatProperties(asset)
+                    };
+                    resolve(props);
+                    console.log(asset, props);
                 } catch (ex) {
                     reject(ex);
                 }
@@ -363,9 +513,15 @@
                 const selected = getSelectedNode();
                 try {
                     const data = await this.getHqProjectId(selected.project);
-                    const assets = await this.getRemoteAssets(data.hubId, data.projectId, cursorState, limit);
-                    resolve(assets);
-                    console.log(assets);
+                    const assetData = await this.getRemoteAssets(data.hubId, data.projectId, cursorState, limit);
+                    const assets = assetData.results;
+                    for (let i = 0; i < assets.length; i++) {
+                        const asset = assets[i];
+                        this.mapIdToName(asset);
+                    }
+
+                    console.log(assetData);
+                    resolve(assetData);
                 } catch (ex) {
                     reject(new Error(ex));
                 }
@@ -443,320 +599,7 @@
             });
         }
 
-        // async prefetchData() {
-        //     try {
-        //         this.dataProvider.fetchData();
-        //     } catch (ex) {
-        //         console.warn(`[BIM360AssetListPanel]: ${ex}`);
-        //     }
-        // }
-
-        // async getAssets(cursorState, limit) {
-        //     return new Promise(async (resolve, reject) => {
-        //         const selected = getSelectedNode();
-        //         try {
-        //             const data = await this.getHqProjectId(selected.project);
-        //             const assets = await this.getRemoteAssets(data.hubId, data.projectId, cursorState, limit);
-        //             resolve(assets);
-        //             console.log(assets);
-        //         } catch (ex) {
-        //             reject(new Error(ex));
-        //         }
-        //     });
-        // }
-
-        // async getHqProjectId(href) {
-        //     return new Promise(async (resolve, reject) => {
-        //         fetch(`/api/forge/bim360/hq/project?href=${href}`, {
-        //             method: 'get',
-        //             headers: new Headers({ 'Content-Type': 'application/json' })
-        //         })
-        //             .then((response) => {
-        //                 if (response.status === 200) {
-        //                     return response.json();
-        //                 } else {
-        //                     return reject(
-        //                         new Error(`Failed to fetch HQ project info from server (status: ${response.status}, message: ${response.statusText})`)
-        //                     );
-        //                 }
-        //             })
-        //             .then((data) => {
-        //                 if (!data) return reject(new Error('Empty response'));
-
-        //                 resolve(data);
-        //             })
-        //             .catch((error) => reject(error));
-        //     });
-        // }
-
-        // async getRemoteAssets(accountId, projectId, cursorState, limit) {
-        //     return new Promise((resolve, reject) => {
-        //         let query = '';
-        //         if (limit) {
-        //             query += `pageLimit=${limit}`
-        //         } else {
-        //             // Todo: fix back previous bug 
-        //             // Todo: check cursorState meaning with asset team, current cursorState is the same with nextUrl
-        //             query += 'pageLimit=3'
-        //             //query += 'pageLimit=5'
-        //         }
-
-        //         if (cursorState) {
-        //             query += `&cursorState=${cursorState}`
-        //         }
-
-        //         fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/assets?${query}`, {
-        //             method: 'get',
-        //             headers: new Headers({ 'Content-Type': 'application/json' })
-        //         })
-        //             .then((response) => {
-        //                 if (response.status === 200) {
-        //                     return response.json();
-        //                 } else {
-        //                     return reject(
-        //                         new Error(`Failed to fetch BIM360 Assets from server (status: ${response.status}, message: ${response.statusText})`)
-        //                     );
-        //                 }
-        //             })
-        //             .then((data) => {
-        //                 if (!data) return reject(new Error('Empty response'));
-
-        //                 resolve(data);
-        //             })
-        //             .catch((error) => reject(error));
-        //     });
-        // }
-
-        // async getUsers() {
-        //     return new Promise(async (resolve, reject) => {
-        //         const selected = getSelectedNode();
-        //         try {
-        //             const data = await this.getHqProjectId(selected.project);
-        //             const users = await this.getRemoteUsers(data.hubId, data.projectId);
-        //             resolve(users);
-        //             console.log(users);
-        //         } catch (ex) {
-        //             reject(new Error(ex));
-        //         }
-        //     });
-        // }
-
-        // async getRemoteUsers(accountId, projectId) {
-        //     return new Promise((resolve, reject) => {
-        //         fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/users`, {
-        //             method: 'get',
-        //             headers: new Headers({ 'Content-Type': 'application/json' })
-        //         })
-        //             .then((response) => {
-        //                 if (response.status === 200) {
-        //                     return response.json();
-        //                 } else {
-        //                     return reject(
-        //                         new Error(`Failed to fetch BIM360 users from server (status: ${response.status}, message: ${response.statusText})`)
-        //                     );
-        //                 }
-        //             })
-        //             .then((data) => {
-        //                 if (!data) return reject(new Error('Empty response'));
-
-        //                 resolve(data);
-        //             })
-        //             .catch((error) => reject(error));
-        //     });
-        // }
-
-        // buildTreeBreadCrumbs(tree) {
-        //     // function walk(node, name) {
-        //     //     if (node.subcategories !== undefined) {
-        //     //         node.subcategories.forEach(function (child) {
-        //     //             name += ` > ${walk(child, child.name)}`;
-        //     //         });
-        //     //     }
-
-        //     //     return name;
-        //     // }
-
-        //     // return walk(tree, tree.name);
-
-        //     const breadcrumbs = [];
-        //     function traverse(node, path) {
-        //         if (!path)
-        //             path = [];
-        //         if (node.name) {
-        //             path.push({ id: node.id, path: node.name })
-        //         }
-        //         breadcrumbs.push(path);
-        //         if (node.subcategories) {
-        //             node.subcategories.forEach(function (item) {
-        //                 traverse(item, path.slice());
-        //             });
-        //         }
-        //         if (node.children) {
-        //             node.children.forEach(function (item) {
-        //                 traverse(item, path.slice());
-        //             });
-        //         }
-        //     }
-        //     traverse(tree, []);
-
-        //     return breadcrumbs.map(b => {
-        //         const last = b[b.length - 1];
-        //         const breadcrumb = b.map(s => s.path).join(' > ');
-        //         return { id: last.id, breadcrumb };
-        //     });//.reduce((accumulator, val) => accumulator.concat(val), []);
-        // }
-
-        // async getAssetCategories() {
-        //     return new Promise(async (resolve, reject) => {
-        //         const selected = getSelectedNode();
-        //         try {
-        //             const data = await this.getHqProjectId(selected.project);
-        //             const cates = await this.getRemoteAssetCategories(data.hubId, data.projectId);
-
-        //             const result = [];
-        //             for (let i = 0; i < cates.length; i++) {
-        //                 const cate = cates[i];
-        //                 result.push(this.buildTreeBreadCrumbs(cate));
-        //             }
-
-        //             const flattenResult = result.reduce((accumulator, val) => accumulator.concat(val), []);
-        //             const breadcrumbs = {};
-        //             for (let i = 0; i < flattenResult.length; i++) {
-        //                 const data = flattenResult[i];
-        //                 breadcrumbs[data.id] = data.breadcrumb;
-        //             }
-        //             console.log(breadcrumbs);
-        //             resolve(breadcrumbs);
-        //         } catch (ex) {
-        //             reject(new Error(ex));
-        //         }
-        //     });
-        // }
-
-        // async getRemoteAssetCategories(accountId, projectId) {
-        //     return new Promise((resolve, reject) => {
-        //         fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/asset-categories?buildTree=true`, {
-        //             method: 'get',
-        //             headers: new Headers({ 'Content-Type': 'application/json' })
-        //         })
-        //             .then((response) => {
-        //                 if (response.status === 200) {
-        //                     return response.json();
-        //                 } else {
-        //                     return reject(
-        //                         new Error(`Failed to fetch BIM360 Asset categories from server (status: ${response.status}, message: ${response.statusText})`)
-        //                     );
-        //                 }
-        //             })
-        //             .then((data) => {
-        //                 if (!data) return reject(new Error('Empty response'));
-
-        //                 resolve(data);
-        //             })
-        //             .catch((error) => reject(error));
-        //     });
-        // }
-
-        // async getAssetStatuses() {
-        //     return new Promise(async (resolve, reject) => {
-        //         const selected = getSelectedNode();
-        //         try {
-        //             const data = await this.getHqProjectId(selected.project);
-        //             const statuses = await this.getRemoteAssetStatuses(data.hubId, data.projectId);
-        //             const statusMap = {};
-        //             for (let i = 0; i < statuses.length; i++) {
-        //                 const status = statuses[i];
-        //                 for (let j = 0; j < status.values.length; j++) {
-        //                     const subStatus = status.values[j];
-        //                     statusMap[subStatus.id] = subStatus;
-        //                 }
-        //             }
-
-        //             console.log(statusMap);
-        //             resolve(statusMap);
-        //         } catch (ex) {
-        //             reject(new Error(ex));
-        //         }
-        //     });
-        // }
-
-        // async getRemoteAssetStatuses(accountId, projectId) {
-        //     return new Promise((resolve, reject) => {
-        //         fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/asset-statuses`, {
-        //             method: 'get',
-        //             headers: new Headers({ 'Content-Type': 'application/json' })
-        //         })
-        //             .then((response) => {
-        //                 if (response.status === 200) {
-        //                     return response.json();
-        //                 } else {
-        //                     return reject(
-        //                         new Error(`Failed to fetch BIM360 Asset statuses from server (status: ${response.status}, message: ${response.statusText})`)
-        //                     );
-        //                 }
-        //             })
-        //             .then((data) => {
-        //                 if (!data) return reject(new Error('Empty response'));
-
-        //                 resolve(data);
-        //             })
-        //             .catch((error) => reject(error));
-        //     });
-        // }
-
-        // async getLocations() {
-        //     return new Promise(async (resolve, reject) => {
-        //         const selected = getSelectedNode();
-        //         try {
-        //             const data = await this.getHqProjectId(selected.project);
-        //             const locations = await this.getRemoteLocations(`b.${data.hubId}`, `b.${data.projectId}`);
-
-        //             const result = [];
-        //             for (let i = 0; i < locations.length; i++) {
-        //                 const loc = locations[i];
-        //                 result.push(this.buildTreeBreadCrumbs(loc));
-        //             }
-
-        //             const flattenResult = result.reduce((accumulator, val) => accumulator.concat(val), []);
-        //             const breadcrumbs = {};
-        //             for (let i = 0; i < flattenResult.length; i++) {
-        //                 const data = flattenResult[i];
-        //                 breadcrumbs[data.id] = data.breadcrumb;
-        //             }
-        //             console.log(breadcrumbs);
-        //             resolve(breadcrumbs);
-        //         } catch (ex) {
-        //             reject(new Error(ex));
-        //         }
-        //     });
-        // }
-
-        // async getRemoteLocations(accountId, projectId) {
-        //     return new Promise((resolve, reject) => {
-        //         fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/locations?buildTree=true`, {
-        //             method: 'get',
-        //             headers: new Headers({ 'Content-Type': 'application/json' })
-        //         })
-        //             .then((response) => {
-        //                 if (response.status === 200) {
-        //                     return response.json();
-        //                 } else {
-        //                     return reject(
-        //                         new Error(`Failed to fetch BIM360 Locations from server (status: ${response.status}, message: ${response.statusText})`)
-        //                     );
-        //                 }
-        //             })
-        //             .then((data) => {
-        //                 if (!data) return reject(new Error('Empty response'));
-
-        //                 resolve(data);
-        //             })
-        //             .catch((error) => reject(error));
-        //     });
-        // }
-
         async createUI() {
-
             this.uiCreated = true;
             const dataTable = new Autodesk.Viewing.UI.DataTable(this);
             dataTable._createRows();
@@ -774,6 +617,25 @@
 
             while (dataTable.datatableDiv.firstChild) {
                 dataTable.datatableDiv.removeChild(dataTable.datatableDiv.lastChild);
+            }
+        }
+
+        async getAssetViewerId(externalId) {
+            try {
+                const getExternalIdMapping = () => {
+                    return new Promise((resolve, reject) => {
+                        this.viewer.model.getExternalIdMapping(
+                            map => resolve(map),
+                            error => reject(new Error(error))
+                        )
+                    });
+                };
+
+                const extIdMap = await getExternalIdMapping();
+                return extIdMap[externalId];
+            } catch (ex) {
+                console.warn(`[BIM360AssetInfoPanel]: ${ex}`);
+                return null;
             }
         }
 
@@ -797,17 +659,14 @@
 
             for (let i = 0; i < data.length; i++) {
                 const asset = data[i];
-                const status = this.dataProvider.statuses[asset.statusId];
-                const category = this.dataProvider.categories[asset.categoryId];
-                const location = this.dataProvider.locations[asset.locationId];
 
                 tableContents.push([
                     asset.clientAssetId,
-                    category,
-                    location,
+                    asset.category,
+                    asset.location,
                     asset.manufacturer,
                     asset.model,
-                    status.label
+                    asset.status
                 ]);
             }
 
@@ -820,12 +679,33 @@
                 const asset = data[i];
                 const tableRow = tableRows[i];
 
-                tableRow.ondblclick = (event) => {
+                tableRow.ondblclick = async (event) => {
                     event.preventDefault();
                     event.stopPropagation();
 
-                    console.log(asset);
-                    alert(`Asset ${asset.clientAssetId} clicked!`);
+                    let dbId = null;
+
+                    for (let attrName in asset.customAttributes) {
+                        const attrDef = this.dataProvider.customAttrDefs[attrName];
+
+                        if (attrDef.displayName !== 'External Id')
+                            continue;
+
+                        const attrVal = asset.customAttributes[attrName];
+                        dbId = await this.getAssetViewerId(attrVal);
+                    }
+
+                    if (!dbId) {
+                        alert(`No External Id value found for Asset \`${asset.clientAssetId}\`!`)
+                    } else {
+                        this.viewer.fitToView();
+                        this.viewer.clearSelection();
+                        this.viewer.select(dbId);
+                        //this.viewer.isolate(dbId);
+                        this.viewer.fitToView([dbId]);
+                    }
+
+                    console.log(`Asset \`${asset.clientAssetId}\` clicked!`, asset);
                 };
 
                 const tdIdx = [2, 3];
@@ -910,68 +790,6 @@
             });
         }
 
-        // async getHqProjectId(href) {
-        //     return new Promise(async (resolve, reject) => {
-        //         fetch(`/api/forge/bim360/hq/project?href=${href}`, {
-        //             method: 'get',
-        //             headers: new Headers({ 'Content-Type': 'application/json' })
-        //         })
-        //             .then((response) => {
-        //                 if (response.status === 200) {
-        //                     return response.json();
-        //                 } else {
-        //                     return reject(
-        //                         new Error(`Failed to fetch HQ project info from server (status: ${response.status}, message: ${response.statusText})`)
-        //                     );
-        //                 }
-        //             })
-        //             .then((data) => {
-        //                 if (!data) return reject(new Error('Empty response'));
-
-        //                 resolve(data);
-        //             })
-        //             .catch((error) => reject(error));
-        //     });
-        // }
-
-        // async getAssetInfo(assetId) {
-        //     return new Promise(async (resolve, reject) => {
-        //         const selected = getSelectedNode();
-        //         try {
-        //             const data = await this.getHqProjectId(selected.project);
-        //             const users = await this.getRemoteAssetInfo(data.hubId, data.projectId, assetId);
-        //             resolve(users);
-        //             console.log(users);
-        //         } catch (ex) {
-        //             reject(new Error(ex));
-        //         }
-        //     });
-        // }
-
-        // async getRemoteAssetInfo(accountId, projectId, assetId) {
-        //     return new Promise((resolve, reject) => {
-        //         fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/assets/${assetId}`, {
-        //             method: 'get',
-        //             headers: new Headers({
-        //                 'Content-Type': 'application/json'
-        //             })
-        //         })
-        //             .then((response) => {
-        //                 if (response.status === 200) {
-        //                     return response.json();
-        //                 } else {
-        //                     return reject(new Error(response.statusText));
-        //                 }
-        //             })
-        //             .then((data) => {
-        //                 if (!data) return reject(new Error('Failed to fetch asset info from the server'));
-
-        //                 return resolve(data);
-        //             })
-        //             .catch((error) => reject(new Error(error)));
-        //     });
-        // }
-
         async getAssetId(dbId) {
             return new Promise((resolve, reject) => {
                 function onSuccess(result) {
@@ -1007,7 +825,6 @@
 
                 return {
                     dbId,
-                    //name: 'Asset Info',
                     name: `Asset [${result.externalId}]`,
                     externalId: result.id,
                     properties: result.properties
