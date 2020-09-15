@@ -636,6 +636,12 @@
             }
         }
 
+        showDefaultProperties(dbId) {
+            this.setTitle('Unknown Asset', { localizeTitle: true });
+            this.showNoProperties();
+            this.resizeToContent();
+        }
+
         async requestNodeProperties(dbId) {
             this.propertyNodeId = dbId;
 
@@ -689,8 +695,7 @@
                     }
                 }
             } catch (error) {
-                super.showDefaultProperties();
-                this.setTitle('Unknown Asset', { localizeTitle: true });
+                this.showDefaultProperties();
             }
         }
     }
