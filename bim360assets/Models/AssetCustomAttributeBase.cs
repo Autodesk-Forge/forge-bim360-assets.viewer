@@ -25,18 +25,30 @@ using bim360assets.Libs;
 namespace bim360assets.Models
 {
     /// <summary>
-    /// Asset Status
+    /// Base Asset Status
     /// </summary>
-    public class AssetStatus : AssetStatusBase
-    {
-        public AssetStatus()
-        {
-            this.Values = new List<SubAssetStatus>();
-        }
-
+    public class AssetCustomAttributeBase {
+        [Key]
+        public string Id { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public string CreatedBy { get; set; }
+        [JsonConverter(typeof(EmptyStringToNullJsonConverter))]
+        public string CreatedByUser { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+        public string UpdatedBy { get; set; }
+        [JsonConverter(typeof(EmptyStringToNullJsonConverter))]
+        public string UpdatedByUser { get; set; }
+        public DateTime? DeletedAt { get; set; }
+        public string DeletedBy { get; set; }
+        [JsonConverter(typeof(EmptyStringToNullJsonConverter))]
+        public string DeletedByUser { get; set; }
+        public bool IsActive { get; set; }
+        public int Version { get; set; }
+        public string ProjectId { get; set; }
         /// <summary>
-        /// The list of Asset Statuses belonging to this Status Set
+        /// The human readable display name for the Asset Custom Attribute
         /// </summary>
-        public List<SubAssetStatus> Values { get; set; }
+        [MaxLength(100)]
+        public string DisplayName { get; set; }
     }
 }

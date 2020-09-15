@@ -24,19 +24,15 @@ using bim360assets.Libs;
 
 namespace bim360assets.Models
 {
-    /// <summary>
-    /// Asset Status
-    /// </summary>
-    public class AssetStatus : AssetStatusBase
+    public class ViewerProperty
     {
-        public AssetStatus()
-        {
-            this.Values = new List<SubAssetStatus>();
-        }
-
-        /// <summary>
-        /// The list of Asset Statuses belonging to this Status Set
-        /// </summary>
-        public List<SubAssetStatus> Values { get; set; }
+        public string AttributeName { get; set; }
+        public string DisplayCategory { get; set; }
+        public string DisplayName { get; set; }
+        public string DisplayValue { get; set; }
+        public int Hidden { get; set; } = 0;
+        public int Precision { get; set; } = 0;
+        public int Type { get; set; }
+        public string Units  { get; set; }
     }
 }

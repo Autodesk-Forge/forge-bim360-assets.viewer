@@ -25,18 +25,9 @@ using bim360assets.Libs;
 namespace bim360assets.Models
 {
     /// <summary>
-    /// Asset Status
+    /// Base Asset Status
     /// </summary>
-    public class AssetStatus : AssetStatusBase
-    {
-        public AssetStatus()
-        {
-            this.Values = new List<SubAssetStatus>();
-        }
-
-        /// <summary>
-        /// The list of Asset Statuses belonging to this Status Set
-        /// </summary>
-        public List<SubAssetStatus> Values { get; set; }
+    public class AssetCustomAttributeValue : AssetCustomAttributeBase {
+        public string CustomAttributeId { get; set; }
     }
 }

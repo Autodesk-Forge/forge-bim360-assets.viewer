@@ -16,27 +16,32 @@
 // UNINTERRUPTED OR ERROR FREE.
 /////////////////////////////////////////////////////////////////////
 
-using System;
-using Newtonsoft.Json;
-using System.ComponentModel.DataAnnotations;
-using System.Collections.Generic;
-using bim360assets.Libs;
-
 namespace bim360assets.Models
 {
     /// <summary>
-    /// Asset Status
+    /// Type 2 Pagination for BIM360 API
     /// </summary>
-    public class AssetStatus : AssetStatusBase
+    public class Pagination2
     {
-        public AssetStatus()
-        {
-            this.Values = new List<SubAssetStatus>();
-        }
-
         /// <summary>
-        /// The list of Asset Statuses belonging to this Status Set
+        /// The ‘limit’ value used by this request
         /// </summary>
-        public List<SubAssetStatus> Values { get; set; }
+        public int Limit { get; set; }
+        /// <summary>
+        /// The ‘offset’ value used for this request
+        /// </summary>
+        public int Offset { get; set; }
+        /// <summary>
+        /// The total number of nodes that satisfies the query
+        /// </summary>
+        public int TotalResults { get; set; }
+        /// <summary>
+        /// URL path that will return the previous page of data
+        /// </summary>
+        public string Previous { get; set; }
+        /// <summary>
+        /// URL path that will return the next page of data
+        /// </summary>
+        public string Next { get; set; }
     }
 }

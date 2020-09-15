@@ -65,6 +65,7 @@
                 this.users = await this.getUsers();
                 this.statuses = await this.getAssetStatuses();
                 this.categories = await this.getAssetCategories();
+                this.locations = await this.getLocations();
             } catch (ex) {
                 console.warn(`[BIM360AssetListPanel]: ${ex}`);
             }
@@ -113,11 +114,11 @@
                 let query = '';
                 if (limit) {
                     query += `pageLimit=${limit}`
-                    // } else {
-                    //     // Todo: fix back previous bug 
-                    //     // Todo: check cursorState meaning with asset team, current cursorState is the same with nextUrl
-                    //     query += 'pageLimit=3'
-                    //     //query += 'pageLimit=5'
+                } else {
+                    // Todo: fix back previous bug 
+                    // Todo: check cursorState meaning with asset team, current cursorState is the same with nextUrl
+                    query += 'pageLimit=3'
+                    //query += 'pageLimit=5'
                 }
 
                 if (cursorState) {
@@ -207,6 +208,11 @@
                 breadcrumbs.push(path);
                 if (node.subcategories) {
                     node.subcategories.forEach(function (item) {
+                        traverse(item, path.slice());
+                    });
+                }
+                if (node.children) {
+                    node.children.forEach(function (item) {
                         traverse(item, path.slice());
                     });
                 }
@@ -318,6 +324,57 @@
             });
         }
 
+        async getLocations() {
+            return new Promise(async (resolve, reject) => {
+                const selected = getSelectedNode();
+                try {
+                    const data = await this.getHqProjectId(selected.project);
+                    const locations = await this.getRemoteLocations(`b.${data.hubId}`, `b.${data.projectId}`);
+
+                    const result = [];
+                    for (let i = 0; i < locations.length; i++) {
+                        const loc = locations[i];
+                        result.push(this.buildTreeBreadCrumbs(loc));
+                    }
+
+                    const flattenResult = result.reduce((accumulator, val) => accumulator.concat(val), []);
+                    const breadcrumbs = {};
+                    for (let i = 0; i < flattenResult.length; i++) {
+                        const data = flattenResult[i];
+                        breadcrumbs[data.id] = data.breadcrumb;
+                    }
+                    console.log(breadcrumbs);
+                    resolve(breadcrumbs);
+                } catch (ex) {
+                    reject(new Error(ex));
+                }
+            });
+        }
+
+        async getRemoteLocations(accountId, projectId) {
+            return new Promise((resolve, reject) => {
+                fetch(`/api/forge/bim360/account/${accountId}/project/${projectId}/locations?buildTree=true`, {
+                    method: 'get',
+                    headers: new Headers({ 'Content-Type': 'application/json' })
+                })
+                    .then((response) => {
+                        if (response.status === 200) {
+                            return response.json();
+                        } else {
+                            return reject(
+                                new Error(`Failed to fetch BIM360 Locations from server (status: ${response.status}, message: ${response.statusText})`)
+                            );
+                        }
+                    })
+                    .then((data) => {
+                        if (!data) return reject(new Error('Empty response'));
+
+                        resolve(data);
+                    })
+                    .catch((error) => reject(error));
+            });
+        }
+
         async createUI() {
 
             this.uiCreated = true;
@@ -352,23 +409,22 @@
 
             this.clearDataTable();
 
-            if (this.assets)
-                this.prevPagination = this.assets.pagination;
+            // if (this.assets)
+            //     this.prevPagination = this.assets.pagination;
 
             const data = assets.results;
             this.assets = assets;
-
-            console.log(this.users, this.categories, this.statuses);
 
             for (let i = 0; i < data.length; i++) {
                 const asset = data[i];
                 const status = this.statuses[asset.statusId];
                 const category = this.categories[asset.categoryId];
+                const location = this.locations[asset.locationId];
 
                 tableContents.push([
                     asset.clientAssetId,
                     category,
-                    asset.locationId,
+                    location,
                     asset.manufacturer,
                     asset.model,
                     status.label
@@ -392,8 +448,11 @@
                     alert(`Asset ${asset.clientAssetId} clicked!`);
                 };
 
-                const categoryCell = tableRow.querySelector('td:nth-child(2)');
-                categoryCell.setAttribute('title', categoryCell.innerText);
+                const tdIdx = [2, 3];
+                for (let j = 0; j < tdIdx.length; j++) {
+                    const categoryCell = tableRow.querySelector(`td:nth-child(${tdIdx[j]})`);
+                    categoryCell.setAttribute('title', categoryCell.innerText);
+                }
             }
         }
 
@@ -458,6 +517,39 @@
     class BIM360AssetInfoPanel extends Autodesk.Viewing.Extensions.ViewerPropertyPanel {
         constructor(viewer) {
             super(viewer);
+
+            this.addVisibilityListener((show) => {
+                if (!show) return;
+
+                if (!this.currentModel) {
+                    super.showDefaultProperties();
+                    this.setTitle('Unknown Asset', { localizeTitle: true });
+                }
+            });
+        }
+
+        async getHqProjectId(href) {
+            return new Promise(async (resolve, reject) => {
+                fetch(`/api/forge/bim360/hq/project?href=${href}`, {
+                    method: 'get',
+                    headers: new Headers({ 'Content-Type': 'application/json' })
+                })
+                    .then((response) => {
+                        if (response.status === 200) {
+                            return response.json();
+                        } else {
+                            return reject(
+                                new Error(`Failed to fetch HQ project info from server (status: ${response.status}, message: ${response.statusText})`)
+                            );
+                        }
+                    })
+                    .then((data) => {
+                        if (!data) return reject(new Error('Empty response'));
+
+                        resolve(data);
+                    })
+                    .catch((error) => reject(error));
+            });
         }
 
         async getAssetInfo(assetId) {
@@ -500,39 +592,48 @@
 
         async getAssetId(dbId) {
             return new Promise((resolve, reject) => {
-                this.currentModel.getProperties(
-                    dbId,
-                    (result) => resolve(result.externalId),
-                    (error) => reject(error)
+                function onSuccess(result) {
+                    if (!result || result.length <= 0) {
+                        resolve(null);
+                    } else {
+                        const data = result[0];
+                        if (data.properties.length <= 0) {
+                            resolve(data.externalId);
+                        } else {
+                            resolve(data.properties[0]);
+                        }
+                    }
+                }
+
+                function onError(error) {
+                    reject(error)
+                }
+
+                this.currentModel.getBulkProperties2(
+                    [dbId],
+                    { propFilter: ['Asset ID', 'externalId', 'name'] },
+                    onSuccess,
+                    onError
                 );
             });
         }
 
         async formatProps(dbId) {
-            const assetId = await this.getAssetId(dbId);
-            const result = await this.getRemoteAssetInfo(accountId, projectId, assetId);
+            try {
+                const assetId = await this.getAssetId(dbId);
+                const result = await this.getAssetInfo(assetId);
 
-            const props = [];
-            for (let i = 0; i < result.length; ++i) {
-                const data = result[i];
-                props.push({
-                    attributeName: data.name,
-                    displayCategory: data.category,
-                    displayName: data.displayName,
-                    displayValue: data.value,
-                    hidden: 0,
-                    precision: 0,
-                    type: data.dataType.serial,
-                    units: null
-                });
+                return {
+                    dbId,
+                    //name: 'Asset Info',
+                    name: `Asset [${result.externalId}]`,
+                    externalId: result.id,
+                    properties: result.properties
+                };
+            } catch (ex) {
+                console.warn(`[BIM360AssetInfoPanel]: ${ex}`);
+                return null;
             }
-
-            return {
-                dbId,
-                name: `Asset [${result.clientAssetId}]`,
-                externalId: result.id,
-                properties: props
-            };
         }
 
         async requestNodeProperties(dbId) {
@@ -542,6 +643,11 @@
 
             try {
                 const result = await this.formatProps(dbId);
+                if (!result) {
+                    this.currentModel = null;
+                    this.currentNodeIds = [];
+                    throw new Error(`No Asset info for dbId: ${dbId}`);
+                }
 
                 this.setTitle(result.name, { localizeTitle: true });
                 this.setProperties(result.properties);
@@ -583,7 +689,8 @@
                     }
                 }
             } catch (error) {
-                this.showDefaultProperties();
+                super.showDefaultProperties();
+                this.setTitle('Unknown Asset', { localizeTitle: true });
             }
         }
     }
@@ -608,9 +715,9 @@
             viewer.addPanel(assetListPanel);
             this.assetListPanel = assetListPanel;
 
-            // const assetInfoPanel = new BIM360AssetInfoPanel(viewer);
-            // viewer.addPanel(assetInfoPanel);
-            // this.assetInfoPanel = assetInfoPanel;
+            const assetInfoPanel = new BIM360AssetInfoPanel(viewer);
+            viewer.addPanel(assetInfoPanel);
+            this.assetInfoPanel = assetInfoPanel;
 
             const assetListButton = new Autodesk.Viewing.UI.Button('toolbar-bim360AssetList');
             assetListButton.setToolTip('Asset List');
@@ -621,12 +728,12 @@
                 assetListPanel.setVisible(!assetListPanel.isVisible());
             };
 
-            // const assetInfoButton = new Autodesk.Viewing.UI.Button('toolbar-bim360AssetInfo');
-            // assetInfoButton.setToolTip('Asset Info');
-            // assetInfoButton.setIcon('adsk-icon-properties');
-            // assetInfoButton.onClick = function () {
-            //     assetInfoPanel.setVisible(!assetInfoPanel.isVisible());
-            // };
+            const assetInfoButton = new Autodesk.Viewing.UI.Button('toolbar-bim360AssetInfo');
+            assetInfoButton.setToolTip('Asset Info');
+            assetInfoButton.setIcon('adsk-icon-properties');
+            assetInfoButton.onClick = function () {
+                assetInfoPanel.setVisible(!assetInfoPanel.isVisible());
+            };
 
             assetListPanel.addVisibilityListener(function (visible) {
                 if (visible)
@@ -635,18 +742,18 @@
                 assetListButton.setState(visible ? Autodesk.Viewing.UI.Button.State.ACTIVE : Autodesk.Viewing.UI.Button.State.INACTIVE);
             });
 
-            // assetInfoPanel.addVisibilityListener(function (visible) {
-            //     if (visible)
-            //         viewer.onPanelVisible(assetInfoPanel, viewer);
+            assetInfoPanel.addVisibilityListener(function (visible) {
+                if (visible)
+                    viewer.onPanelVisible(assetInfoPanel, viewer);
 
-            //     assetInfoButton.setState(visible ? Autodesk.Viewing.UI.Button.State.ACTIVE : Autodesk.Viewing.UI.Button.State.INACTIVE);
-            // });
+                assetInfoButton.setState(visible ? Autodesk.Viewing.UI.Button.State.ACTIVE : Autodesk.Viewing.UI.Button.State.INACTIVE);
+            });
 
             const subToolbar = new Autodesk.Viewing.UI.ControlGroup('toolbar-bim360-tools');
             subToolbar.addControl(assetListButton);
-            //subToolbar.addControl(assetInfoButton);
+            subToolbar.addControl(assetInfoButton);
             subToolbar.assetListButton = assetListButton;
-            //subToolbar.assetInfoButton = assetInfoButton;
+            subToolbar.assetInfoButton = assetInfoButton;
             this.subToolbar = subToolbar;
 
             viewer.toolbar.addControl(this.subToolbar);

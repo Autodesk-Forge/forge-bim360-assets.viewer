@@ -31,6 +31,7 @@ using bim360assets.Models;
 using System.Web;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.WebUtilities;
+using System.Text.RegularExpressions;
 
 namespace bim360assets.Controllers
 {
@@ -240,7 +241,8 @@ namespace bim360assets.Controllers
             if (assets.Pagination.Offset > 0)
             {
                 var offest = assets.Pagination.Offset - assets.Pagination.Limit;
-                var prevCursorState = new {
+                var prevCursorState = new
+                {
                     offset = offest <= 0 ? 0 : offest,
                     limit = assets.Pagination.Limit
                 };
@@ -312,7 +314,23 @@ namespace bim360assets.Controllers
             if (asset == null)
                 return NotFound($"No asset with id: {assetId}");
 
-            return Ok(asset);
+            IRestResponse usersResponse = await GetUsers(accountId);
+            var users = JsonConvert.DeserializeObject<List<User>>(usersResponse.Content);
+            var userMapping = users.ToDictionary(u => u.Uid, u => u);
+            Func<string, string> getUserName = (uid) => (!string.IsNullOrWhiteSpace(uid) && userMapping.ContainsKey(uid)) ? userMapping[uid].Name : string.Empty;
+            asset.CreatedByUser = getUserName(asset.CreatedBy);
+            asset.UpdatedByUser = getUserName(asset.UpdatedBy);
+            asset.DeletedByUser = getUserName(asset.DeletedBy);
+            asset.InstalledByUser = getUserName(asset.InstalledBy);
+
+            var properties = await this.FlatProperties(asset, projectId);
+
+            return Ok(new
+            {
+                id = asset.Id,
+                externalId = asset.ClientAssetId,
+                properties
+            });
         }
 
         private int ConvertAttributeType(Type type)
@@ -347,9 +365,74 @@ namespace bim360assets.Controllers
             return viewerAttributeType;
         }
 
-        private object ConvertToViewerProperties(Asset asset)
+
+        private async Task<List<ViewerProperty>> FlatProperties(Dictionary<string, object> customAttributes, string projectId)
         {
-            return null;
+            var properties = new List<ViewerProperty>();
+            var attrDefsResponse = await GetCustomAttributeDefsAsync(projectId);
+            var attrDefs = JsonConvert.DeserializeObject<PaginatedAssetCustomAttributes>(attrDefsResponse.Content);
+            var attrDefMapping = attrDefs.Results.ToDictionary(d => d.Name, d => d);
+            Func<string, string> getAttrDefName = (name) => (!string.IsNullOrWhiteSpace(name) && attrDefMapping.ContainsKey(name)) ? attrDefMapping[name].DisplayName : string.Empty;
+
+            foreach (var pair in customAttributes)
+            {
+                var attrName = pair.Key;
+                var attrVal = pair.Value.ToString();
+                var attrType = this.ConvertAttributeType(attrVal.GetType());
+
+                //!-- Todo: get custom attribute name from Assets API
+                var property = new ViewerProperty
+                {
+                    AttributeName = attrName,
+                    DisplayCategory = "Custom",
+                    DisplayName = getAttrDefName(attrName),
+                    DisplayValue = attrVal,
+                    Hidden = 0,
+                    Precision = 0,
+                    Type = attrType,
+                    Units = null
+                };
+
+                properties.Add(property);
+            }
+            return properties;
+        }
+
+        private async Task<List<ViewerProperty>> FlatProperties(Asset asset, string projectId)
+        {
+            var properties = new List<ViewerProperty>();
+            foreach (System.Reflection.PropertyInfo pi in asset.GetType().GetProperties())
+            {
+                var attrName = pi.Name;
+                if (attrName == "CustomAttributes")
+                {
+                    var flattenCustomAttrs = await this.FlatProperties(((Dictionary<string, object>)pi.GetValue(asset, null)), projectId);
+                    properties.AddRange(flattenCustomAttrs);
+                    continue;
+                }
+
+                var isHidden = (attrName.EndsWith("Id") || attrName.EndsWith("By")) ? 1 : 0;
+                var attrType = this.ConvertAttributeType(pi.PropertyType);
+                var attrVal = pi.GetValue(asset, null)?.ToString();
+
+                if (pi.PropertyType == typeof(DateTime?))
+                    attrVal = ((DateTime?)pi.GetValue(asset, null))?.ToUniversalTime()
+                                            .ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'");
+
+                var property = new ViewerProperty
+                {
+                    AttributeName = attrName,
+                    DisplayCategory = "Built In",
+                    DisplayName = Regex.Replace(attrName, "(\\B[A-Z])", " $1"),
+                    DisplayValue = attrVal,
+                    Hidden = isHidden,
+                    Precision = 0,
+                    Type = attrType,
+                    Units = null
+                };
+                properties.Add(property);
+            }
+            return properties;
         }
 
         private async Task<Asset> GetAssetsByIdAsync(string projectId, string id)
@@ -364,7 +447,7 @@ namespace bim360assets.Controllers
                                     (a.CustomAttributes != null && a.CustomAttributes.Values.Any(p => p.ToString().Contains(id)))
                                 )
                                 .FirstOrDefault();
-
+            #region DEBUG
             // Asset asset = null;
             // var found = false;
             // foreach (var a in assets.Results)
@@ -394,8 +477,20 @@ namespace bim360assets.Controllers
             //         }
             //     }
             // }
+            #endregion
 
             return asset;
+        }
+
+        private async Task<IRestResponse> GetCustomAttributeDefsAsync(string projectId)
+        {
+            Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
+            RestClient client = new RestClient(BASE_URL);
+            RestRequest request = new RestRequest("/bim360/assets/v1/projects/{project_id}/custom-attributes", RestSharp.Method.GET);
+            request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
+            request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
+
+            return await client.ExecuteTaskAsync(request);
         }
 
         private async Task<IRestResponse> GetAssetsByIdAsync(string projectId, List<string> ids)
@@ -423,9 +518,12 @@ namespace bim360assets.Controllers
             IRestResponse categoriesResponse = await GetAssetCategoriesAsync(projectId.Replace("b.", string.Empty), cursorState, pageLimit);
             var categories = JsonConvert.DeserializeObject<PaginatedAssetCategories>(categoriesResponse.Content);
 
-            if(buildTree == false) {
+            if (buildTree == false)
+            {
                 return Ok(categories.Results);
-            } else {
+            }
+            else
+            {
                 var root = categories.Results.FirstOrDefault();
                 var tree = AssetCategory.BuildTree(categories.Results, root.Id);
                 return Ok(tree);
@@ -480,6 +578,68 @@ namespace bim360assets.Controllers
             {
                 request.AddParameter("limit", pageLimit.Value, ParameterType.QueryString);
             }
+
+            return await client.ExecuteTaskAsync(request);
+        }
+
+        [HttpGet]
+        [Route("api/forge/bim360/account/{accountId}/project/{projectId}/locations")]
+        public async Task<IActionResult> GetBIM360LocationsAsync(string accountId, string projectId, [FromQuery] bool buildTree = false)
+        {
+            IRestResponse locsResponse = await GetLocationsAsync(accountId, projectId);
+            var locations = JsonConvert.DeserializeObject<PaginatedLocations>(locsResponse.Content);
+
+            if (buildTree == false)
+            {
+                return Ok(locations.Results);
+            }
+            else
+            {
+                var root = locations.Results.FirstOrDefault();
+                var tree = Location.BuildTree(locations.Results, root.Id);
+                return Ok(tree);
+            }
+        }
+
+        private async Task<string> GetContainerIdAsync(string accountId, string projectId, ContainerType type)
+        {
+            Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
+
+            ProjectsApi projectsApi = new ProjectsApi();
+            projectsApi.Configuration.AccessToken = credentials.TokenInternal;
+            var project = await projectsApi.GetProjectAsync(accountId, projectId);
+            var relationships = project.data.relationships;
+            string containerId = string.Empty;
+
+            var result = relationships.Dictionary;//.GetType().GetProperty("Dictionary").GetValue(relationships, null);
+
+            foreach (var relation in result)
+            {
+                string name = relation.Key;
+                if (name != type.Value)
+                    continue;
+
+                var data = relation.Value.data;
+                if(data == null || !data.type.Contains(type.Value))
+                    continue;
+                
+                containerId = data.id;
+            }
+
+            return containerId;
+        }
+
+        private async Task<IRestResponse> GetLocationsAsync(string accountId, string projectId)
+        {
+            var containerId = await GetContainerIdAsync(accountId, projectId, ContainerType.Locations);
+
+            Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
+
+            RestClient client = new RestClient(BASE_URL);
+            RestRequest request = new RestRequest("/bim360/locations/v2/containers/{container_id}/trees/{tree_id}/nodes", RestSharp.Method.GET);
+            request.AddParameter("container_id", containerId, ParameterType.UrlSegment);
+            request.AddParameter("tree_id", "default", ParameterType.UrlSegment);
+            request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
 
             return await client.ExecuteTaskAsync(request);
         }

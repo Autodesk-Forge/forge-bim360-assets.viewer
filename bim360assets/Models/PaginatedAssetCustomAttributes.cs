@@ -16,27 +16,28 @@
 // UNINTERRUPTED OR ERROR FREE.
 /////////////////////////////////////////////////////////////////////
 
-using System;
-using Newtonsoft.Json;
-using System.ComponentModel.DataAnnotations;
 using System.Collections.Generic;
-using bim360assets.Libs;
 
 namespace bim360assets.Models
 {
     /// <summary>
-    /// Asset Status
+    /// PaginatedAssetCustomAttributes
     /// </summary>
-    public class AssetStatus : AssetStatusBase
+    public class PaginatedAssetCustomAttributes
     {
-        public AssetStatus()
+        public PaginatedAssetCustomAttributes()
         {
-            this.Values = new List<SubAssetStatus>();
+            this.Results = new List<AssetCustomAttribute>();
         }
 
         /// <summary>
-        /// The list of Asset Statuses belonging to this Status Set
+        /// Page info
         /// </summary>
-        public List<SubAssetStatus> Values { get; set; }
+        public Pagination Pagination { get; set; }
+
+        /// <summary>
+        /// An array of AssetCustomAttribute
+        /// </summary>
+        public List<AssetCustomAttribute> Results { get; set; }
     }
 }

@@ -16,27 +16,13 @@
 // UNINTERRUPTED OR ERROR FREE.
 /////////////////////////////////////////////////////////////////////
 
-using System;
-using Newtonsoft.Json;
-using System.ComponentModel.DataAnnotations;
-using System.Collections.Generic;
-using bim360assets.Libs;
-
 namespace bim360assets.Models
 {
-    /// <summary>
-    /// Asset Status
-    /// </summary>
-    public class AssetStatus : AssetStatusBase
+    public sealed class ContainerType
     {
-        public AssetStatus()
-        {
-            this.Values = new List<SubAssetStatus>();
-        }
-
-        /// <summary>
-        /// The list of Asset Statuses belonging to this Status Set
-        /// </summary>
-        public List<SubAssetStatus> Values { get; set; }
+        private ContainerType(string value) { Value = value; }
+        public string Value { get; private set; }
+        public static ContainerType Issues { get { return new ContainerType("issues"); } }
+        public static ContainerType Locations { get { return new ContainerType("locations"); } }
     }
 }
