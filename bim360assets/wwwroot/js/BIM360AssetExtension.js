@@ -673,7 +673,6 @@
             dataTable.setData(tableContents, tableHeaders);
 
             const tableRows = dataTable.datatableDiv.querySelectorAll('.clusterize-content tr');
-            console.log(tableRows);
 
             for (let i = 0; i < tableRows.length; i++) {
                 const asset = data[i];
@@ -682,6 +681,10 @@
                 tableRow.ondblclick = async (event) => {
                     event.preventDefault();
                     event.stopPropagation();
+
+                    // Reset active state
+                    dataTable.datatableDiv.querySelectorAll('.clusterize-content tr.active').forEach(tr => tr.classList.remove('active'));
+                    event.target.parentElement.classList.add('active');
 
                     let dbId = null;
 
@@ -701,7 +704,7 @@
                         this.viewer.fitToView();
                         this.viewer.clearSelection();
                         this.viewer.select(dbId);
-                        //this.viewer.isolate(dbId);
+                        this.viewer.isolate(dbId);
                         this.viewer.fitToView([dbId]);
                     }
 

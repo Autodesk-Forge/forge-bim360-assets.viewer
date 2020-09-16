@@ -91,8 +91,29 @@ body {
   min-width: 43px;
 }
 
-.bim360-asset-list-panel .datatable .clusterize-headers #headersArea tr {
+/* .bim360-asset-list-panel .datatable .clusterize-headers #headersArea tr {
   background-color: rgba(34,34,34,.9);
+} */
+
+/* .bim360-asset-list-panel .datatable .table-striped > tbody > tr {
+  background-color: #4a4747 !important;
+} */
+
+.bim360-asset-list-panel .datatable .table-striped>tbody>tr:nth-child(odd)>td, .adsk-viewing-viewer .datatable .table-striped>tbody>tr:nth-child(odd)>th {
+  background-color: transparent;
+}
+
+.bim360-asset-list-panel .datatable .table-striped tr:hover:not(.active) {
+  background: rgba(0,0,0,.4)!important;
+}
+
+.bim360-asset-list-panel .datatable .table-striped tr.active {
+  background-color: #4a4747;
+}
+
+/* omit tr color from bootstrap */
+.table-striped > tbody > tr:nth-of-type(2n+1) {
+  background-color: transparent;
 }
 
 .docking-panel-pagination {
