@@ -477,7 +477,7 @@
                         properties: this.flatProperties(asset)
                     };
                     resolve(props);
-                    console.log(asset, props);
+                    //console.log(asset, props);
                 } catch (ex) {
                     reject(ex);
                 }
@@ -520,7 +520,7 @@
                         this.mapIdToName(asset);
                     }
 
-                    console.log(assetData);
+                    //console.log(assetData);
                     resolve(assetData);
                 } catch (ex) {
                     reject(new Error(ex));
@@ -565,6 +565,34 @@
                     .catch((error) => reject(error));
             });
         }
+
+        async getAssetId(dbId, model) {
+            return new Promise((resolve, reject) => {
+                function onSuccess(result) {
+                    if (!result || result.length <= 0) {
+                        resolve(null);
+                    } else {
+                        const data = result[0];
+                        if (data.properties.length <= 0) {
+                            resolve(data.externalId);
+                        } else {
+                            resolve(data.properties[0]);
+                        }
+                    }
+                }
+
+                function onError(error) {
+                    reject(error)
+                }
+
+                model.getBulkProperties2(
+                    [dbId],
+                    { propFilter: ['Asset ID', 'externalId', 'name'] },
+                    onSuccess,
+                    onError
+                );
+            });
+        }
     }
 
     class BIM360AssetListPanel extends Autodesk.Viewing.UI.DockingPanel {
@@ -589,7 +617,8 @@
             this.options = options;
             this.uiCreated = false;
             this.dataProvider = dataProvider;
-            //this.prefetchData();
+
+            this.onSelectionChanged = this.onSelectionChanged.bind(this);
 
             this.addVisibilityListener(async (show) => {
                 if (!show) return;
@@ -597,6 +626,43 @@
                 if (!this.uiCreated)
                     await this.createUI();
             });
+        }
+
+        async onSelectionChanged(event) {
+            if (!event.selections || event.selections.length <= 0)
+                return;
+
+            try {
+                const dbIds = event.selections[0].dbIdArray;
+                const model = event.selections[0].model;
+                const dbId = dbIds[0];
+
+                const assetId = await this.dataProvider.getAssetId(dbId, model);
+                const tableRows = this.dataTable.datatableDiv.querySelectorAll('.clusterize-content tr');
+                const data = this.assets.results;
+
+                const idx = data.findIndex(a =>
+                    a.id == assetId ||
+                    a.clientAssetId == assetId ||
+                    (a.customAttributes && Object.values(a.customAttributes).find(p => p.toString().includes(assetId)))
+                );
+
+                if (idx <= -1)
+                    return;
+
+                // Reset active state
+                this.dataTable.datatableDiv.querySelectorAll('.clusterize-content tr.active').forEach(tr => tr.classList.remove('active'));
+                tableRows[idx].classList.add('active');
+            } catch (ex) {
+                console.warn(`[BIM360AssetInfoPanel]: ${ex}`);
+            }
+        }
+
+        uninitialize() {
+            this.viewer.removeEventListener(
+                Autodesk.Viewing.AGGREGATE_SELECTION_CHANGED_EVENT,
+                this.onSelectionChanged
+            );
         }
 
         async createUI() {
@@ -609,6 +675,11 @@
 
             this.createPagination();
             this.updatePagination();
+
+            this.viewer.addEventListener(
+                Autodesk.Viewing.AGGREGATE_SELECTION_CHANGED_EVENT,
+                this.onSelectionChanged
+            );
         }
 
         clearDataTable() {
@@ -698,11 +769,12 @@
                         dbId = await this.getAssetViewerId(attrVal);
                     }
 
+                    this.viewer.clearSelection();
+
                     if (!dbId) {
                         alert(`No External Id value found for Asset \`${asset.clientAssetId}\`!`)
                     } else {
                         this.viewer.fitToView();
-                        this.viewer.clearSelection();
                         this.viewer.select(dbId);
                         this.viewer.isolate(dbId);
                         this.viewer.fitToView([dbId]);
@@ -793,37 +865,9 @@
             });
         }
 
-        async getAssetId(dbId) {
-            return new Promise((resolve, reject) => {
-                function onSuccess(result) {
-                    if (!result || result.length <= 0) {
-                        resolve(null);
-                    } else {
-                        const data = result[0];
-                        if (data.properties.length <= 0) {
-                            resolve(data.externalId);
-                        } else {
-                            resolve(data.properties[0]);
-                        }
-                    }
-                }
-
-                function onError(error) {
-                    reject(error)
-                }
-
-                this.currentModel.getBulkProperties2(
-                    [dbId],
-                    { propFilter: ['Asset ID', 'externalId', 'name'] },
-                    onSuccess,
-                    onError
-                );
-            });
-        }
-
         async formatProps(dbId) {
             try {
-                const assetId = await this.getAssetId(dbId);
+                const assetId = await this.dataProvider.getAssetId(dbId, this.currentModel);
                 const result = await this.dataProvider.getAssetInfo(assetId);
 
                 return {
