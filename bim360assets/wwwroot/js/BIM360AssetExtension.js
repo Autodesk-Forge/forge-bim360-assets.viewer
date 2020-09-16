@@ -17,7 +17,7 @@
 /////////////////////////////////////////////////////////////////////
 
 (function () {
-    /*class DataTable extends Autodesk.Viewing.UI.DataTable {
+    class AssetDataTable extends Autodesk.Viewing.UI.DataTable {
         constructor(dockingPanel) {
             super(dockingPanel);
         }
@@ -27,7 +27,31 @@
                 this.datatableDiv.removeChild(this.datatableDiv.lastChild);
             }
         }
-    }*/
+
+        _sortTable(col, reverse) {
+            const prevActiveTableRow = this.datatableDiv.querySelector('.clusterize-content tr.active');
+            let activeAssetId = null;
+
+            if (prevActiveTableRow != null)
+                activeAssetId = prevActiveTableRow.firstElementChild.innerText;
+
+            super._sortTable(col, reverse);
+
+            if (!activeAssetId)
+                return;
+
+            const tableRows = this.datatableDiv.querySelectorAll('.clusterize-content tr');
+            for (let i = 0; i < tableRows.length; i++) {
+                const tr = tableRows[i];
+                const assetId = tr.firstElementChild.innerText;
+                if (!assetId.includes(activeAssetId))
+                    continue;
+
+                tr.classList.add('active');
+            }
+
+        }
+    }
 
     class BIM360DataProvider {
         constructor() {
@@ -667,7 +691,7 @@
 
         async createUI() {
             this.uiCreated = true;
-            const dataTable = new Autodesk.Viewing.UI.DataTable(this);
+            const dataTable = new AssetDataTable(this);
             dataTable._createRows();
             this.dataTable = dataTable;
 
@@ -680,15 +704,6 @@
                 Autodesk.Viewing.AGGREGATE_SELECTION_CHANGED_EVENT,
                 this.onSelectionChanged
             );
-        }
-
-        clearDataTable() {
-            const dataTable = this.dataTable;
-            if (!dataTable) return;
-
-            while (dataTable.datatableDiv.firstChild) {
-                dataTable.datatableDiv.removeChild(dataTable.datatableDiv.lastChild);
-            }
         }
 
         async getAssetViewerId(externalId) {
@@ -720,7 +735,7 @@
             if (!assets || assets.results.length <= 0)
                 return;
 
-            this.clearDataTable();
+            this.dataTable.clearContent();
 
             // if (this.assets)
             //     this.prevPagination = this.assets.pagination;
