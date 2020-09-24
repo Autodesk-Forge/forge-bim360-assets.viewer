@@ -557,10 +557,10 @@
                 let query = '';
                 if (limit) {
                     query += `pageLimit=${limit}`
-                } else {
+                //} else {
                     // Todo: fix back previous bug 
                     // Todo: check cursorState meaning with asset team, current cursorState is the same with nextUrl
-                    query += 'pageLimit=3'
+                    //query += 'pageLimit=3'
                     //query += 'pageLimit=5'
                 }
 
