@@ -306,7 +306,7 @@ namespace bim360assets.Controllers
         [Route("api/forge/bim360/account/{accountId}/project/{projectId}/assets/{assetId}")]
         public async Task<IActionResult> GetBIM360AssetByIdAsync(string accountId, string projectId, string assetId, [FromQuery] bool flatten = false)
         {
-            var asset = await GetAssetsByIdAsync(projectId, assetId);
+            var asset = await GetAssetsByIdAsync(projectId, assetId, null, null);
             if (asset == null)
                 return NotFound($"No asset with id: {assetId}");
 
@@ -437,10 +437,13 @@ namespace bim360assets.Controllers
             return properties;
         }
 
-        private async Task<Asset> GetAssetsByIdAsync(string projectId, string id)
+        private async Task<Asset> GetAssetsByIdAsync(string projectId, string id, string cursorState, Nullable<int> pageLimit = null)
         {
-            IRestResponse assetsResponse = await GetAssetsAsync(projectId.Replace("b.", string.Empty), null, null);
+            IRestResponse assetsResponse = await GetAssetsAsync(projectId.Replace("b.", string.Empty), cursorState, pageLimit);
             var assets = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
+
+            if (assets.Results == null || assets.Results.Count <= 0)
+                return null;
 
             Asset asset = assets.Results
                                 .Where(a =>
@@ -449,6 +452,20 @@ namespace bim360assets.Controllers
                                     (a.CustomAttributes != null && a.CustomAttributes.Values.Any(p => p.ToString().Contains(id)))
                                 )
                                 .FirstOrDefault();
+
+            if (asset == null && assets.Pagination.CursorState != null)
+            {
+                var nextCursorState = new
+                {
+                    offset = assets.Pagination.Offset + assets.Pagination.Limit,
+                    limit = assets.Pagination.Limit
+                };
+                var nextCursorStateStr = JsonConvert.SerializeObject(nextCursorState);
+                var encodedNextCursorStateStr = Convert.ToBase64String(Encoding.UTF8.GetBytes(nextCursorStateStr));
+
+                return await GetAssetsByIdAsync(projectId, id, encodedNextCursorStateStr, assets.Pagination.Limit);
+            }
+
             #region DEBUG
             // Asset asset = null;
             // var found = false;

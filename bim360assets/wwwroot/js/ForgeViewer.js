@@ -16,40 +16,41 @@
 // UNINTERRUPTED OR ERROR FREE.
 /////////////////////////////////////////////////////////////////////
 
-var viewer=null;
+var viewer = null;
 
-function launchViewer(urn, viewableId) { 
-    if (viewer!=null) {
-        viewer.tearDown()
-        viewer.finish()
-        viewer = null
-        $("#forgeViewer").empty();
-    } 
+function launchViewer(urn, viewableId) {
+  if (viewer != null) {
+    viewer.tearDown()
+    viewer.finish()
+    viewer = null
+    $("#forgeViewer").empty();
+  }
   var options = {
     env: 'AutodeskProduction',
     getAccessToken: getForgeToken,
     api: 'derivativeV2' + (atob(urn.replace('_', '/')).indexOf('emea') > -1 ? '_EU' : '')
-  }; 
+  };
 
-    Autodesk.Viewing.Initializer(options, () => {
-        const config3d = { 
-            extensions: ['BIM360AssetExtension'] 
-        };
-        viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById('forgeViewer'), config3d);
-        viewer.start();
-        var documentId = 'urn:' + urn;
-        Autodesk.Viewing.Document.load(documentId, onDocumentLoadSuccess, onDocumentLoadFailure);
+  Autodesk.Viewing.Initializer(options, () => {
+    const config3d = {
+      extensions: ['BIM360AssetExtension', 'Autodesk.AEC.LevelsExtension']
+    };
+    viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById('forgeViewer'), config3d);
+    viewer.start();
+    var documentId = 'urn:' + urn;
+    Autodesk.Viewing.Document.load(documentId, onDocumentLoadSuccess, onDocumentLoadFailure);
+  });
+  async function onDocumentLoadSuccess(doc) {
+    await doc.downloadAecModelData();
+    var viewables = (viewableId ? doc.getRoot().findByGuid(viewableId) : doc.getRoot().getDefaultGeometry());
+    viewer.loadDocumentNode(doc, viewables).then(i => {
+
     });
-    function onDocumentLoadSuccess(doc) {
-        var viewables = (viewableId ? doc.getRoot().findByGuid(viewableId) : doc.getRoot().getDefaultGeometry());
-        viewer.loadDocumentNode(doc, viewables).then(i => {
+  }
 
-        });
-    }
-
-    function onDocumentLoadFailure(viewerErrorCode) {
-        console.error('onDocumentLoadFailure() - errorCode:' + viewerErrorCode);
-    } 
+  function onDocumentLoadFailure(viewerErrorCode) {
+    console.error('onDocumentLoadFailure() - errorCode:' + viewerErrorCode);
+  }
 }
 
 

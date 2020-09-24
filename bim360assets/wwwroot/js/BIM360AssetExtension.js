@@ -37,6 +37,8 @@
 
             super._sortTable(col, reverse);
 
+            this.dockingPanel.bindEvent();
+
             if (!activeAssetId)
                 return;
 
@@ -49,7 +51,6 @@
 
                 tr.classList.add('active');
             }
-
         }
     }
 
@@ -557,7 +558,7 @@
                 let query = '';
                 if (limit) {
                     query += `pageLimit=${limit}`
-                //} else {
+                    //} else {
                     // Todo: fix back previous bug 
                     // Todo: check cursorState meaning with asset team, current cursorState is the same with nextUrl
                     //query += 'pageLimit=3'
@@ -662,21 +663,26 @@
                 const dbId = dbIds[0];
 
                 const assetId = await this.dataProvider.getAssetId(dbId, model);
-                const tableRows = this.dataTable.datatableDiv.querySelectorAll('.clusterize-content tr');
+                const tableRows = [... this.dataTable.datatableDiv.querySelectorAll('.clusterize-content tr')];
                 const data = this.assets.results;
 
-                const idx = data.findIndex(a =>
+                const asset = data.find(a =>
                     a.id == assetId ||
                     a.clientAssetId == assetId ||
                     (a.customAttributes && Object.values(a.customAttributes).find(p => p.toString().includes(assetId)))
                 );
 
-                if (idx <= -1)
+                if (!asset)
                     return;
 
                 // Reset active state
                 this.dataTable.datatableDiv.querySelectorAll('.clusterize-content tr.active').forEach(tr => tr.classList.remove('active'));
-                tableRows[idx].classList.add('active');
+
+                const tableRow = tableRows.find(tr => tr.firstElementChild.innerText.includes(asset.clientAssetId));
+                if (!tableRow)
+                    return;
+
+                tableRow.classList.add('active');
             } catch (ex) {
                 console.warn(`[BIM360AssetInfoPanel]: ${ex}`);
             }
@@ -758,11 +764,25 @@
 
             dataTable.setData(tableContents, tableHeaders);
 
+            this.bindEvent();
+        }
+
+        bindEvent() {
+            const dataTable = this.dataTable;
+            if (!dataTable) return;
+
+            const assets = this.assets;
+            if (!assets) return;
+
+            const data = assets.results;
             const tableRows = dataTable.datatableDiv.querySelectorAll('.clusterize-content tr');
 
             for (let i = 0; i < tableRows.length; i++) {
-                const asset = data[i];
                 const tableRow = tableRows[i];
+                const assetId = tableRow.firstElementChild.innerText;
+                const asset = data.find(d => assetId.includes(d.clientAssetId));
+                if (!asset)
+                    continue;
 
                 tableRow.ondblclick = async (event) => {
                     event.preventDefault();
