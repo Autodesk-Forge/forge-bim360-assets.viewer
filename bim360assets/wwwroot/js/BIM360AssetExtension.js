@@ -1082,7 +1082,7 @@
             this.viewer.setCutPlanes();
 
             const level = this.findLevelByName(name);
-            if(level) {
+            if (level) {
                 this.levelSelector.selectFloor(level.index, false);
             } else {
                 this.levelSelector.selectFloor();
@@ -1500,7 +1500,9 @@
                 this.spaceFilterPanel = null;
 
                 const levelExt = this.viewer.getExtension('Autodesk.AEC.LevelsExtension');
-                levelExt.levelsButton.setVisible(true);
+                if (levelExt) {
+                    levelExt.levelsButton.setVisible(true);
+                }
             }
 
             if (this.subToolbar) {
