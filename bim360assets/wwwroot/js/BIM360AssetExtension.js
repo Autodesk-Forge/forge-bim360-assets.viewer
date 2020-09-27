@@ -61,6 +61,7 @@
             this.categories = null;
             this.customAttrDefs = null;
             this.locations = null;
+            this.locationBreadcrumbs = null;
         }
 
         dispose() {
@@ -79,12 +80,16 @@
             while (this.locations.length > 0) {
                 this.locations.pop();
             }
+            while (this.locationBreadcrumbs.length > 0) {
+                this.locationBreadcrumbs.pop();
+            }
 
             this.users = null;
             this.statuses = null;
             this.categories = null;
             this.customAttrDefs = null;
             this.locations = null;
+            this.locationBreadcrumbs = null;
         }
 
         async fetchData() {
@@ -94,6 +99,7 @@
                 this.categories = await this.getAssetCategories();
                 this.customAttrDefs = await this.getAssetCustomAttributeDefs();
                 this.locations = await this.getLocations();
+                this.locationBreadcrumbs = await this.getLocationBreadcrumbs();
             } catch (ex) {
                 console.warn(`[BIM360DataProvider]: ${ex}`);
             }
@@ -311,6 +317,17 @@
                 try {
                     const data = await this.getHqProjectId(selected.project);
                     const locations = await this.getRemoteLocations(`b.${data.hubId}`, `b.${data.projectId}`);
+                    resolve(locations);
+                } catch (ex) {
+                    reject(new Error(ex));
+                }
+            });
+        }
+
+        async getLocationBreadcrumbs() {
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const locations = await this.getLocations();
 
                     const result = [];
                     for (let i = 0; i < locations.length; i++) {
@@ -428,7 +445,7 @@
             const installedByUser = this.users[asset.installedBy];
             const status = this.statuses[asset.statusId];
             const category = this.categories[asset.categoryId];
-            const location = this.locations[asset.locationId];
+            const location = this.locationBreadcrumbs[asset.locationId];
 
             asset.createdByUser = createdByUser ? createdByUser.name : '';
             asset.updatedByUser = updatedByUser ? updatedByUser.name : '';
@@ -693,6 +710,8 @@
                 Autodesk.Viewing.AGGREGATE_SELECTION_CHANGED_EVENT,
                 this.onSelectionChanged
             );
+
+            super.uninitialize();
         }
 
         async createUI() {
@@ -981,6 +1000,374 @@
         }
     }
 
+    class BIM360SpaceFilterPanel extends Autodesk.Viewing.UI.DockingPanel {
+        constructor(viewer, dataProvider) {
+            const options = {};
+
+            //  Height adjustment for scroll container, offset to height of the title bar and footer by default.
+            if (!options.heightAdjustment)
+                options.heightAdjustment = 70;
+
+            if (!options.marginTop)
+                options.marginTop = 0;
+
+            //options.addFooter = false;
+
+            super(viewer.container, viewer.container.id + 'BIM360SpaceFilterPanel', 'Space Filter', options);
+
+            this.container.classList.add('bim360-docking-panel');
+            this.container.classList.add('bim360-space-filter-panel');
+            this.createScrollContainer(options);
+
+            this.viewer = viewer;
+            this.options = options;
+            this.uiCreated = false;
+            this.dataProvider = dataProvider;
+
+            this.addVisibilityListener(async (show) => {
+                if (!show) return;
+
+                if (!this.uiCreated)
+                    await this.createUI();
+            });
+        }
+
+        async uninitialize() {
+            // Unload Room model
+            if (this.roomModel) {
+                await this.viewer.unloadDocumentNode(this.roomModel.getDocumentNode());
+            }
+
+            delete this.roomModel;
+            this.roomModel = null;
+
+            while (this.roomDbIds.length > 0) {
+                this.roomDbIds.pop();
+            }
+
+            this.roomDbIds = null;
+
+            super.uninitialize();
+        }
+
+        get levelSelector() {
+            const levelExt = this.viewer.getExtension('Autodesk.AEC.LevelsExtension');
+            return levelExt && levelExt.floorSelector;
+        }
+
+        get renderer() {
+            return this.viewer.impl.renderer();
+        }
+
+        async createUI() {
+            this.uiCreated = true;
+
+            const div = document.createElement('div');
+
+            const treeDiv = document.createElement('div');
+            div.appendChild(treeDiv);
+            this.treeContainer = treeDiv;
+            this.scrollContainer.appendChild(div);
+
+            const locs = this.dataProvider.locations;
+            this.buildTree(locs);
+        }
+
+        findLevelByName(name) {
+            const levelData = this.levelSelector.floorData;
+            return levelData.find(level => level.name.includes(name));
+        }
+
+        setLevelFilterByName(name) {
+            this.viewer.setCutPlanes();
+
+            const level = this.findLevelByName(name);
+            if(level) {
+                this.levelSelector.selectFloor(level.index, false);
+            } else {
+                this.levelSelector.selectFloor();
+            }
+        }
+
+        hoverLevelByName(name) {
+            const level = this.findLevelByName(name);
+            let levelIdx = level ? level.index : null;
+            if (levelIdx === this.levelSelector.currentFloor) {
+                levelIdx = Autodesk.AEC.FloorSelector.AllFloors;
+            }
+
+            this.levelSelector.rollOverFloor(levelIdx);
+        }
+
+        dehoverLevel() {
+            //this.levelSelector.rollOverFloor(Autodesk.AEC.FloorSelector.NoFloor);
+            this.levelSelector.rollOverFloor();
+            this.viewer.impl.invalidate(false, true, true);
+        }
+
+        async getPropertiesAsync(dbId, model) {
+            return new Promise((resolve, reject) => {
+                model.getProperties2(
+                    dbId,
+                    (result) => resolve(result),
+                    (error) => reject(error)
+                );
+            });
+        };
+
+        async loadRoomModels() {
+            const getRoomDbIds = () => {
+                return new Promise((resolve, reject) => {
+                    this.viewer.search(
+                        'Revit Rooms',
+                        (dbIds) => resolve(dbIds),
+                        (error) => reject(error),
+                        ['Category'],
+                        { searchHidden: true }
+                    );
+                });
+            };
+
+            try {
+                const roomDbIds = await getRoomDbIds();
+                const firstRoomProps = await this.getPropertiesAsync(roomDbIds[0], this.viewer.model);
+                const roomViewableId = firstRoomProps.properties.find(prop => prop.attributeName === 'viewable_in').displayValue;
+                const doc = this.viewer.model.getDocumentNode().getDocument();
+                const masterViewBubbles = doc.getRoot().search({ 'viewableID': roomViewableId });
+
+                this.roomDbIds = roomDbIds;
+                this.roomModel = await this.viewer.loadDocumentNode(
+                    doc,
+                    masterViewBubbles[0],
+                    {
+                        ids: roomDbIds,
+                        modelNameOverride: 'Room Only Model',
+                        keepCurrentModels: true,
+                        globalOffset: this.viewer.model.getGlobalOffset()
+                    }
+                );
+            } catch (ex) {
+                console.warn(`[BIM360SpaceFilterPanel]: ${ex}`);
+                throw new Error('Failed to load room models');
+            }
+        }
+
+        async findRoomByNameAndLevel(name, level) {
+            return new Promise((resolve, reject) => {
+                this.roomModel.getBulkProperties2(
+                    this.roomDbIds,
+                    { propFilter: ['name', 'Name', 'Level', 'level'] },
+                    (result) => {
+                        for (let i = 0; i < result.length; i++) {
+                            const data = result[i];
+                            const levelMatched = (data.properties.findIndex(p => p.attributeName.toLowerCase() === 'level' && p.displayValue === level) >= 0);
+                            const nameMatched = (data.properties.findIndex(p => p.attributeName.toLowerCase() === 'name' && p.displayValue === name) >= 0);
+
+                            if (levelMatched && nameMatched) {
+                                resolve(data.dbId);
+                                break;
+                            }
+                        }
+                    },
+                    (error) => reject(error),
+                );
+            });
+        }
+
+        getRoomBoundingBox(dbId) {
+            const it = this.roomModel.getInstanceTree();
+            const fragList = this.roomModel.getFragmentList();
+            let bounds = new THREE.Box3();
+
+            it.enumNodeFragments(dbId, (fragId) => {
+                let box = new THREE.Box3();
+                fragList.getWorldBounds(fragId, box);
+                bounds.union(box);
+            }, true);
+
+            return bounds;
+        }
+
+        async findRoomBoundingBoxByNameAndLevel(name, level) {
+            try {
+                const roomDbId = await this.findRoomByNameAndLevel(name, level);
+                const bounds = this.getRoomBoundingBox(roomDbId);
+                return bounds;
+            } catch (ex) {
+                return null;
+            }
+        }
+
+        setSectionBox(bounds) {
+            const cutPlanes = [];
+            const normals = [
+                new THREE.Vector3(1, 0, 0),
+                new THREE.Vector3(0, 1, 0),
+                new THREE.Vector3(0, 0, 1),
+                new THREE.Vector3(-1, 0, 0),
+                new THREE.Vector3(0, -1, 0),
+                new THREE.Vector3(0, 0, -1)
+            ];
+
+            const bbox = new THREE.Box3(bounds.min, bounds.max);
+
+            for (let i = 0; i < normals.length; i++) {
+                const plane = new THREE.Plane(normals[i], -1 * bounds.max.dot(normals[i]));
+
+                // offset plane with negative normal to form an octant
+                if (i > 2) {
+                    const ptMax = plane.orthoPoint(bbox.max);
+                    const ptMin = plane.orthoPoint(bbox.min);
+                    const size = new THREE.Vector3().subVectors(ptMax, ptMin);
+                    plane.constant -= size.length();
+                }
+
+                const n = new THREE.Vector4(plane.normal.x, plane.normal.y, plane.normal.z, plane.constant);
+                cutPlanes.push(n);
+            }
+
+            this.viewer.setCutPlanes(cutPlanes);
+        }
+
+        /**
+         * Unhide floors, ceilings and etc. that will cover the view while applying level sectioning.
+         */
+        clearLevelSelectorFilter() {
+            this.levelSelector._floorSelectorFilter.clearFilter();
+        }
+
+        /**
+         * Hide floors, ceilings and etc. that will cover the view while applying level sectioning.
+         * @param {number} levelIdx Level index in the AecModelDAta.
+         */
+        runLevelSelectorFilter(levelIdx) {
+            this.clearLevelSelectorFilter();
+            this.levelSelector._floorSelectorFilter.filter(this.levelSelector._floorFilterData, levelIdx);
+        }
+
+        async setRoomFilterByNameAndLevel(name, level) {
+            this.levelSelector.selectFloor();
+            this.viewer.setCutPlanes();
+
+            const levelInfo = this.findLevelByName(level);
+            const bounds = await this.findRoomBoundingBoxByNameAndLevel(name, level);
+            bounds.expandByScalar(2.0);
+            bounds.min.z = levelInfo.zMin;
+            bounds.max.z = levelInfo.zMax;
+
+            this.setSectionBox(bounds);
+
+            this.viewer.navigation.fitBounds(false, bounds);
+            this.runLevelSelectorFilter(levelInfo);
+        }
+
+        async hoverRoom(name, level) {
+            try {
+                const roomDbId = await this.findRoomByNameAndLevel(name, level);
+                this.viewer.impl.highlightObjectNode(this.roomModel, roomDbId, true, false);
+            } catch (ex) {
+            }
+        }
+
+        async dehoverRoom(name, level) {
+            try {
+                const roomDbId = await this.findRoomByNameAndLevel(name, level);
+                this.viewer.impl.highlightObjectNode(this.roomModel, roomDbId, false);
+            } catch (ex) {
+            }
+        }
+
+        buildTree(data) {
+            const nodes = [];
+
+            for (let i = 0; i < data.length; i++) {
+                const node = {
+                    id: data[i].id,
+                    type: 'levels',
+                    text: data[i].name,
+                    children: data[i].children.map(child => {
+                        return {
+                            id: child.id,
+                            type: 'spaces',
+                            text: child.name
+                        };
+                    })
+                }
+                nodes.push(node);
+            }
+
+            console.log(nodes);
+
+            $(this.treeContainer)
+                .jstree({
+                    core: {
+                        data: nodes,
+                        multiple: false,
+                        themes: {
+                            icons: false
+                        }
+                    },
+                    sort: function (a, b) {
+                        const a1 = this.get_node(a);
+                        const b1 = this.get_node(b);
+                        return (a1.text > b1.text) ? 1 : -1;
+                    },
+                    checkbox: {
+                        keep_selected_style: false,
+                        three_state: false,
+                        cascade: 'none'
+                    },
+                    types: {
+                        levels: {},
+                        spaces: {}
+                    },
+                    plugins: ['types', 'checkbox', 'sort'],
+                })
+                .on('hover_node.jstree', async (e, data) => {
+                    if (data.node.type === 'levels') {
+                        const level = data.node.text;
+                        this.hoverLevelByName(level);
+                    } else {
+                        const room = data.node.text;
+                        const level = data.instance.get_node(data.node.parent).text;
+                        this.hoverRoom(room, level);
+                    }
+                })
+                .on('dehover_node.jstree', async (e, data) => {
+                    //console.log(data);
+
+                    if (data.node.type === 'levels') {
+                        this.dehoverLevel();
+                    } else {
+                        const room = data.node.text;
+                        const level = data.instance.get_node(data.node.parent).text;
+                        this.dehoverRoom(room, level);
+                    }
+                })
+                .on('changed.jstree', async (e, data) => {
+                    //console.log(e, data);
+
+                    if (data.action === 'select_node') {
+                        if (data.node.type === 'levels') {
+                            const level = data.node.text;
+                            this.viewer.setCutPlanes();
+                            this.setLevelFilterByName(level);
+                        } else {
+                            const room = data.node.text;
+                            const level = data.instance.get_node(data.node.parent).text;
+                            await this.setRoomFilterByNameAndLevel(room, level);
+                        }
+                    } else {
+                        if (data.node.type === 'levels') {
+                            this.setLevelFilterByName();
+                        } else {
+                            this.viewer.setCutPlanes();
+                        }
+                    }
+                });
+        }
+    }
+
     class BIM360AssetExtension extends Autodesk.Viewing.Extension {
         constructor(viewer, options) {
             super(viewer, options);
@@ -990,15 +1377,16 @@
 
             this.assetListPanel = null;
             this.assetInfoPanel = null;
+            this.spaceFilterPanel = null;
             this.createUI = this.createUI.bind(this);
             this.onToolbarCreated = this.onToolbarCreated.bind(this);
         }
 
-        onToolbarCreated() {
-            this.createUI();
+        async onToolbarCreated() {
+            await this.createUI();
         }
 
-        createUI() {
+        async createUI() {
             const viewer = this.viewer;
 
             const assetListPanel = new BIM360AssetListPanel(viewer, this.dataProvider);
@@ -1008,6 +1396,13 @@
             const assetInfoPanel = new BIM360AssetInfoPanel(viewer, this.dataProvider);
             viewer.addPanel(assetInfoPanel);
             this.assetInfoPanel = assetInfoPanel;
+
+            const spaceFilterPanel = new BIM360SpaceFilterPanel(viewer, this.dataProvider);
+            viewer.addPanel(spaceFilterPanel);
+
+            this.spaceFilterPanel = spaceFilterPanel;
+            // Pre-load room model
+            await spaceFilterPanel.loadRoomModels();
 
             const assetListButton = new Autodesk.Viewing.UI.Button('toolbar-bim360AssetList');
             assetListButton.setToolTip('Asset List');
@@ -1025,6 +1420,16 @@
                 assetInfoPanel.setVisible(!assetInfoPanel.isVisible());
             };
 
+            const levelExt = this.viewer.getExtension('Autodesk.AEC.LevelsExtension');
+            const spaceFilterButton = new Autodesk.Viewing.UI.Button('toolbar-bim360SpaceFilter');
+            spaceFilterButton.setToolTip('Space Filter');
+            //spaceFilterButton.setIcon('adsk-icon-properties');
+            spaceFilterButton.icon.innerHTML = levelExt.levelsButton.icon.innerHTML;
+            levelExt.levelsButton.setVisible(false);
+            spaceFilterButton.onClick = function () {
+                spaceFilterPanel.setVisible(!spaceFilterPanel.isVisible());
+            };
+
             assetListPanel.addVisibilityListener(function (visible) {
                 if (visible)
                     viewer.onPanelVisible(assetListPanel, viewer);
@@ -1039,24 +1444,36 @@
                 assetInfoButton.setState(visible ? Autodesk.Viewing.UI.Button.State.ACTIVE : Autodesk.Viewing.UI.Button.State.INACTIVE);
             });
 
+            spaceFilterPanel.addVisibilityListener(function (visible) {
+                if (visible)
+                    viewer.onPanelVisible(spaceFilterPanel, viewer);
+
+                spaceFilterButton.setState(visible ? Autodesk.Viewing.UI.Button.State.ACTIVE : Autodesk.Viewing.UI.Button.State.INACTIVE);
+            });
+
             const subToolbar = new Autodesk.Viewing.UI.ControlGroup('toolbar-bim360-tools');
             subToolbar.addControl(assetListButton);
             subToolbar.addControl(assetInfoButton);
+            subToolbar.addControl(spaceFilterButton);
             subToolbar.assetListButton = assetListButton;
             subToolbar.assetInfoButton = assetInfoButton;
+            subToolbar.spaceFilterButton = spaceFilterButton;
             this.subToolbar = subToolbar;
 
             viewer.toolbar.addControl(this.subToolbar);
         }
 
-        load() {
+        async load() {
             if (this.viewer.toolbar) {
                 // Toolbar is already available, create the UI
                 this.createUI();
             }
 
+            // Pre-load level extension 
+            await this.viewer.loadExtension('Autodesk.AEC.LevelsExtension');
+
             // Pre-fetch necessary data for assets
-            this.dataProvider.fetchData();
+            await this.dataProvider.fetchData();
 
             return true;
         }
@@ -1076,8 +1493,24 @@
                 this.assetInfoPanel = null;
             }
 
+            if (this.spaceFilterPanel) {
+                this.viewer.removePanel(this.spaceFilterPanel);
+                this.spaceFilterPanel.uninitialize();
+                delete this.spaceFilterPanel;
+                this.spaceFilterPanel = null;
+
+                const levelExt = this.viewer.getExtension('Autodesk.AEC.LevelsExtension');
+                levelExt.levelsButton.setVisible(true);
+            }
+
             if (this.subToolbar) {
                 this.viewer.toolbar.removeControl(this.subToolbar);
+                delete this.subToolbar.assetListButton;
+                delete this.subToolbar.assetInfoButton;
+                delete this.subToolbar.spaceFilterButton;
+                this.subToolbar.assetListButton = null;
+                this.subToolbar.assetInfoButton = null;
+                this.subToolbar.spaceFilterButton = null;
                 delete this.subToolbar;
                 this.subToolbar = null;
             }

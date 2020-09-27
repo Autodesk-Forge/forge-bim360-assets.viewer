@@ -115,6 +115,21 @@ body {
   max-height: 110px;
 }
 
+.bim360-space-filter-panel {
+  max-width: 315px;
+  max-height: 280px;
+  width: 315px;
+  height: 280px;
+}
+
+.bim360-space-filter-panel .docking-panel-footer {
+  z-index: 1;
+}
+
+/* .bim360-space-filter-panel .docking-panel-footer-resizer {
+  display: none;
+} */
+
 /* omit tr color from bootstrap */
 .table-striped > tbody > tr:nth-of-type(2n+1) {
   background-color: transparent;
