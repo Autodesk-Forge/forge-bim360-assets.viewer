@@ -618,7 +618,7 @@
                         if (data.properties.length <= 0) {
                             resolve(data.externalId);
                         } else {
-                            resolve(data.properties[0]);
+                            resolve(data.properties[0].displayValue);
                         }
                     }
                 }
@@ -856,6 +856,8 @@
                     if (externalId)
                         dbId = await this.getAssetViewerId(externalId);
 
+                    this.dehoverAsset(externalId);
+
                     this.viewer.clearSelection();
 
                     if (!dbId) {
@@ -863,7 +865,18 @@
                     } else {
                         this.viewer.fitToView();
                         this.viewer.select(dbId);
-                        this.viewer.isolate(dbId);
+
+                        this.viewer.impl.visibilityManager.aggregateIsolate(
+                            [
+                                {
+                                    ids: [dbId],
+                                    model: this.viewer.model
+                                }
+                            ],
+                            {
+                                hideLoadedModels: true
+                            }
+                        );
                         this.viewer.fitToView([dbId]);
                     }
 
@@ -1100,52 +1113,83 @@
                 return;
             }
 
-            const menu = super.buildMenu(event, status);
+            const menu = super.buildMenu(event, status).filter(m => !m.title.includes('Show All Objects'));
             const is2d = this.viewer.model.is2d();
 
             if (!is2d) {
-                let asset = this.getSelectedAsset();
-                const isAsset = await this.isAsset(asset.dbId, asset.model);
+                const showAll = () => {
+                    this.viewer.impl.visibilityManager.aggregateIsolate(
+                        [
+                            {
+                                model: this.viewer.model
+                            }
+                        ],
+                        {
+                            hideLoadedModels: true
+                        }
+                    );
 
-                if (!status.hasSelected || !isAsset) {
-                    return menu;
-                }
+                    this.viewer.impl.layers.showAllLayers();
+                    this.viewer.fireEvent({ type: Autodesk.Viewing.SHOW_ALL_EVENT });
+
+                    Autodesk.Viewing.Private.logger.track({ name: 'showall', aggregate: 'count' });
+                    Autodesk.Viewing.Private.analytics.track('viewer.object.visibility', {
+                        action: 'Show All Objects',
+                    });
+                };
+
+                menu.push({
+                    title: 'Show All Objects',
+                    target: () => {
+                        this.dockingPanel.clearFilter();
+                        showAll();
+                    }
+                });
 
                 const menuEntry = {
                     title: "Filter",
-                    target: []
+                    target: [
+                        {
+                            title: 'Clear Filter',
+                            target: async () => {
+                                try {
+                                    this.dockingPanel.clearFilter();
+                                } catch { }
+                            }
+                        }
+                    ]
                 };
 
-                menuEntry.target.push({
-                    title: 'Level Filter',
-                    target: async () => {
-                        try {
-                            asset = this.getSelectedAsset();
-                            const location = await this.getLocation(asset.dbId, asset.model);
-                            this.dockingPanel.setLevelFilterByName(location.level);
-                        } catch { }
-                    }
-                });
+                let asset = this.getSelectedAsset();
+                const isAsset = await this.isAsset(asset.dbId, asset.model);
 
-                menuEntry.target.push({
-                    title: 'Room Filter',
-                    target: async () => {
-                        try {
-                            asset = this.getSelectedAsset();
-                            const location = await this.getLocation(asset.dbId, asset.model);
-                            this.dockingPanel.setRoomFilterByNameAndLevel(location.space, location.level);
-                        } catch { }
-                    }
-                });
+                if (status.hasSelected && isAsset) {
+                    menuEntry.target.push({
+                        title: 'Level Filter',
+                        target: async () => {
+                            try {
+                                showAll();
+                                asset = this.getSelectedAsset();
+                                const location = await this.getLocation(asset.dbId, asset.model);
+                                this.dockingPanel.setLevelFilterByName(location.level);
+                                this.viewer.select(asset.dbId, asset.model);
+                            } catch { }
+                        }
+                    });
 
-                menuEntry.target.push({
-                    title: 'Clear Filter',
-                    target: async () => {
-                        try {
-                            this.dockingPanel.clearFilter();
-                        } catch { }
-                    }
-                });
+                    menuEntry.target.push({
+                        title: 'Room Filter',
+                        target: async () => {
+                            try {
+                                showAll();
+                                asset = this.getSelectedAsset();
+                                const location = await this.getLocation(asset.dbId, asset.model);
+                                this.dockingPanel.setRoomFilterByNameAndLevel(location.space, location.level);
+                                this.viewer.select(asset.dbId, asset.model);
+                            } catch { }
+                        }
+                    });
+                }
 
                 menu.push(menuEntry);
             }
@@ -1842,13 +1886,13 @@
         }
 
         async load() {
+            // Pre-load level extension 
+            await this.viewer.loadExtension('Autodesk.AEC.LevelsExtension');
+
             if (this.viewer.toolbar) {
                 // Toolbar is already available, create the UI
                 this.createUI();
             }
-
-            // Pre-load level extension 
-            await this.viewer.loadExtension('Autodesk.AEC.LevelsExtension');
 
             // Pre-fetch necessary data for assets
             await this.dataProvider.fetchData();
@@ -1880,6 +1924,9 @@
                 const levelExt = this.viewer.getExtension('Autodesk.AEC.LevelsExtension');
                 if (levelExt) {
                     levelExt.levelsButton.setVisible(true);
+
+                    // Unload level extension 
+                    this.viewer.unloadExtension('Autodesk.AEC.LevelsExtension');
                 }
             }
 

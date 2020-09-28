@@ -33,7 +33,7 @@ function launchViewer(urn, viewableId) {
 
   Autodesk.Viewing.Initializer(options, () => {
     const config3d = {
-      extensions: ['BIM360AssetExtension', 'Autodesk.AEC.LevelsExtension']
+      extensions: ['BIM360AssetExtension']
     };
     viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById('forgeViewer'), config3d);
     viewer.start();
