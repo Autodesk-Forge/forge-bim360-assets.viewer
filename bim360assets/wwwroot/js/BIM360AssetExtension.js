@@ -731,6 +731,22 @@
             );
         }
 
+        async hoverAsset(externalId) {
+            try {
+                const assetId = await this.getAssetViewerId(externalId);
+                this.viewer.impl.highlightObjectNode(this.viewer.model, assetId, true, false);
+            } catch (ex) {
+            }
+        }
+
+        async dehoverAsset(externalId) {
+            try {
+                const assetId = await this.getAssetViewerId(externalId);
+                this.viewer.impl.highlightObjectNode(this.viewer.model, assetId, false);
+            } catch (ex) {
+            }
+        }
+
         async getAssetViewerId(externalId) {
             try {
                 const getExternalIdMapping = () => {
@@ -796,12 +812,36 @@
             const data = assets.results;
             const tableRows = dataTable.datatableDiv.querySelectorAll('.clusterize-content tr');
 
+            const getExternalId = (customAttributes) => {
+                let externalId = null;
+                for (let attrName in customAttributes) {
+                    const attrDef = this.dataProvider.customAttrDefs[attrName];
+
+                    if (attrDef.displayName !== 'External Id')
+                        continue;
+
+                    externalId = customAttributes[attrName];
+                }
+
+                return externalId
+            };
+
             for (let i = 0; i < tableRows.length; i++) {
                 const tableRow = tableRows[i];
                 const assetId = tableRow.firstElementChild.innerText;
                 const asset = data.find(d => assetId.includes(d.clientAssetId));
                 if (!asset)
                     continue;
+
+                tableRow.onmouseenter = async () => {
+                    const externalId = getExternalId(asset.customAttributes);
+                    this.hoverAsset(externalId);
+                };
+
+                tableRow.onmouseleave = async () => {
+                    const externalId = getExternalId(asset.customAttributes);
+                    this.dehoverAsset(externalId);
+                };
 
                 tableRow.ondblclick = async (event) => {
                     event.preventDefault();
@@ -811,17 +851,10 @@
                     dataTable.datatableDiv.querySelectorAll('.clusterize-content tr.active').forEach(tr => tr.classList.remove('active'));
                     event.target.parentElement.classList.add('active');
 
+                    const externalId = getExternalId(asset.customAttributes);
                     let dbId = null;
-
-                    for (let attrName in asset.customAttributes) {
-                        const attrDef = this.dataProvider.customAttrDefs[attrName];
-
-                        if (attrDef.displayName !== 'External Id')
-                            continue;
-
-                        const attrVal = asset.customAttributes[attrName];
-                        dbId = await this.getAssetViewerId(attrVal);
-                    }
+                    if (externalId)
+                        dbId = await this.getAssetViewerId(externalId);
 
                     this.viewer.clearSelection();
 
@@ -1023,6 +1056,8 @@
             this.options = options;
             this.uiCreated = false;
             this.dataProvider = dataProvider;
+            this.roomModel = null;
+            this.roomDbIds = null;
 
             this.addVisibilityListener(async (show) => {
                 if (!show) return;
@@ -1036,16 +1071,17 @@
             // Unload Room model
             if (this.roomModel) {
                 await this.viewer.unloadDocumentNode(this.roomModel.getDocumentNode());
+                delete this.roomModel;
+                this.roomModel = null;
             }
 
-            delete this.roomModel;
-            this.roomModel = null;
+            if (this.roomDbIds) {
+                while (this.roomDbIds.length > 0) {
+                    this.roomDbIds.pop();
+                }
 
-            while (this.roomDbIds.length > 0) {
-                this.roomDbIds.pop();
+                this.roomDbIds = null;
             }
-
-            this.roomDbIds = null;
 
             super.uninitialize();
         }
@@ -1130,15 +1166,36 @@
 
             try {
                 const roomDbIds = await getRoomDbIds();
+                if (!roomDbIds || roomDbIds.length <= 0) {
+                    throw new Error('No Rooms found in current model');
+                }
+
                 const firstRoomProps = await this.getPropertiesAsync(roomDbIds[0], this.viewer.model);
-                const roomViewableId = firstRoomProps.properties.find(prop => prop.attributeName === 'viewable_in').displayValue;
                 const doc = this.viewer.model.getDocumentNode().getDocument();
-                const masterViewBubbles = doc.getRoot().search({ 'viewableID': roomViewableId });
+
+                const possibleViewableIds = firstRoomProps.properties.filter(prop => prop.attributeName === 'viewable_in').map(prop => prop.displayValue);
+                let masterViewBubble = null;
+                for (let i = 0; i < possibleViewableIds.length; i++) {
+                    const bubbles = doc.getRoot().search({ 'viewableID': possibleViewableIds[i] });
+
+                    if (!bubbles || bubbles.length <= 0)
+                        continue;
+
+                    const bubble = bubbles[0];
+                    if (bubble.is2D())
+                        continue;
+
+                    masterViewBubble = bubble;
+                }
+
+                if (!masterViewBubble) {
+                    throw new Error('No Room model found in current model');
+                }
 
                 this.roomDbIds = roomDbIds;
                 this.roomModel = await this.viewer.loadDocumentNode(
                     doc,
-                    masterViewBubbles[0],
+                    masterViewBubble,
                     {
                         ids: roomDbIds,
                         modelNameOverride: 'Room Only Model',
@@ -1247,7 +1304,7 @@
 
         async setRoomFilterByNameAndLevel(name, level) {
             this.levelSelector.selectFloor();
-            this.viewer.setCutPlanes();
+            //this.viewer.setCutPlanes();
 
             const levelInfo = this.findLevelByName(level);
             const bounds = await this.findRoomBoundingBoxByNameAndLevel(name, level);
@@ -1360,8 +1417,8 @@
                     } else {
                         if (data.node.type === 'levels') {
                             this.setLevelFilterByName();
-                        } else {
-                            this.viewer.setCutPlanes();
+                            // } else {
+                            //     this.viewer.setCutPlanes();
                         }
                     }
                 });
