@@ -1033,6 +1033,149 @@
         }
     }
 
+    class BIM360SpaceFilterContextMenu extends Autodesk.Viewing.Extensions.ViewerObjectContextMenu {
+        constructor(dockingPanel) {
+            super(dockingPanel.viewer);
+
+            this.dockingPanel = dockingPanel;
+        }
+
+        get dataProvider() {
+            return this.dockingPanel.dataProvider;
+        }
+
+        async getPropertiesAsync(dbId, model) {
+            return new Promise((resolve, reject) => {
+                model.getProperties2(
+                    dbId,
+                    (result) => resolve(result),
+                    (error) => reject(error)
+                );
+            });
+        };
+
+        async isAsset(dbId, model) {
+            try {
+                // const assetId = await this.dataProvider.getAssetId(dbId, model);
+                // const result = await this.dataProvider.getAssetInfo(assetId);
+
+                const props = await this.getPropertiesAsync(dbId, model);
+                const assetIdProp = props.properties.find(prop => prop.attributeName === 'Asset ID')
+
+                if (!assetIdProp || !assetIdProp.displayValue) {
+                    return false;
+                }
+
+                return true;
+            } catch (ex) {
+                return false;
+            }
+        }
+
+        getSelectedAsset() {
+            const selSet = this.viewer.getSelection();
+
+            return {
+                model: this.viewer.model,
+                dbId: selSet[0]
+            }
+        };
+
+        async getLocation(dbId, model) {
+            try {
+                const props = await this.getPropertiesAsync(dbId, model);
+                const locationProp = props.properties.find(prop => prop.attributeName === 'Asset Location');
+                const location = locationProp.displayValue.split('>').map(s => s.trim());
+                return {
+                    level: location[0],
+                    space: location[1]
+                }
+            } catch (ex) {
+                return null;
+            }
+        };
+
+        async buildMenu(event, status) {
+            if (!this.viewer.model) {
+                return;
+            }
+
+            const menu = super.buildMenu(event, status);
+            const is2d = this.viewer.model.is2d();
+
+            if (!is2d) {
+                let asset = this.getSelectedAsset();
+                const isAsset = await this.isAsset(asset.dbId, asset.model);
+
+                if (!status.hasSelected || !isAsset) {
+                    return menu;
+                }
+
+                const menuEntry = {
+                    title: "Filter",
+                    target: []
+                };
+
+                menuEntry.target.push({
+                    title: 'Level Filter',
+                    target: async () => {
+                        try {
+                            asset = this.getSelectedAsset();
+                            const location = await this.getLocation(asset.dbId, asset.model);
+                            this.dockingPanel.setLevelFilterByName(location.level);
+                        } catch { }
+                    }
+                });
+
+                menuEntry.target.push({
+                    title: 'Room Filter',
+                    target: async () => {
+                        try {
+                            asset = this.getSelectedAsset();
+                            const location = await this.getLocation(asset.dbId, asset.model);
+                            this.dockingPanel.setRoomFilterByNameAndLevel(location.space, location.level);
+                        } catch { }
+                    }
+                });
+
+                menuEntry.target.push({
+                    title: 'Clear Filter',
+                    target: async () => {
+                        try {
+                            this.dockingPanel.clearFilter();
+                        } catch { }
+                    }
+                });
+
+                menu.push(menuEntry);
+            }
+
+            return menu;
+        }
+
+        async show(event) {
+            const numSelected = this.viewer.getSelectionCount(),
+                visibility = this.viewer.getSelectionVisibility(),
+                rect = this.viewer.impl.getCanvasBoundingClientRect(),
+                status = {
+                    event: event,
+                    numSelected: numSelected,
+                    hasSelected: (0 < numSelected),
+                    hasVisible: visibility.hasVisible,
+                    hasHidden: visibility.hasHidden,
+                    canvasX: event.clientX - rect.left,
+                    canvasY: event.clientY - rect.top
+                },
+                menu = await this.buildMenu(event, status);
+
+            this.viewer.runContextMenuCallbacks(menu, status);
+
+            if (menu && 0 < menu.length) {
+                this.contextMenu.show(event, menu);
+            }
+        }
+    }
+
     class BIM360SpaceFilterPanel extends Autodesk.Viewing.UI.DockingPanel {
         constructor(viewer, dataProvider) {
             const options = {};
@@ -1055,9 +1198,12 @@
             this.viewer = viewer;
             this.options = options;
             this.uiCreated = false;
+            this.isFilterApplied = false;
             this.dataProvider = dataProvider;
             this.roomModel = null;
             this.roomDbIds = null;
+            this.prevFilter = null;
+            this.currentFilter = null;
 
             this.addVisibilityListener(async (show) => {
                 if (!show) return;
@@ -1065,9 +1211,23 @@
                 if (!this.uiCreated)
                     await this.createUI();
             });
+
+            this.attachContextMenu();
+        }
+
+        get levelSelector() {
+            const levelExt = this.viewer.getExtension('Autodesk.AEC.LevelsExtension');
+            return levelExt && levelExt.floorSelector;
+        }
+
+        get renderer() {
+            return this.viewer.impl.renderer();
         }
 
         async uninitialize() {
+            // Clear filter
+            this.clearFilter();
+
             // Unload Room model
             if (this.roomModel) {
                 await this.viewer.unloadDocumentNode(this.roomModel.getDocumentNode());
@@ -1083,16 +1243,17 @@
                 this.roomDbIds = null;
             }
 
+            this.detachContextMenu();
+
             super.uninitialize();
         }
 
-        get levelSelector() {
-            const levelExt = this.viewer.getExtension('Autodesk.AEC.LevelsExtension');
-            return levelExt && levelExt.floorSelector;
+        attachContextMenu() {
+            this.viewer.setContextMenu(new BIM360SpaceFilterContextMenu(this));
         }
 
-        get renderer() {
-            return this.viewer.impl.renderer();
+        detachContextMenu() {
+            this.viewer.setDefaultContextMenu();
         }
 
         async createUI() {
@@ -1109,20 +1270,75 @@
             this.buildTree(locs);
         }
 
+        selectTreeNode(id, focus) {
+            const tree = $(this.treeContainer).jstree(true);
+            const node = tree.get_node(id);
+            const parent = node.parent;
+            if (tree.is_checked(parent)) {
+                tree.uncheck_node(parent);
+            }
+
+            const children = tree.get_bottom_checked(true);
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                if (child.id == id)
+                    continue;
+
+                tree.uncheck_node(child);
+            }
+
+            tree.select_node(node);
+            if (focus) {
+                tree.get_node(parent, true).children('.jstree-anchor').focus();
+            }
+        }
+
+        unselectTreeNode(id) {
+            const tree = $(this.treeContainer).jstree(true);
+            if (tree.is_checked([id]))
+                tree.uncheck_node([id]);
+        }
+
+        clearTreeNodeSelection() {
+            $(this.treeContainer).jstree(true).uncheck_all();
+        }
+
         findLevelByName(name) {
             const levelData = this.levelSelector.floorData;
             return levelData.find(level => level.name.includes(name));
         }
 
-        setLevelFilterByName(name) {
+        findLevelLocationByName(name) {
+            const levelData = this.dataProvider.locations;
+            return levelData.find(level => level.name.includes(name));
+        }
+
+        setLevelFilterByName(name, focus) {
             this.viewer.setCutPlanes();
 
             const level = this.findLevelByName(name);
             if (level) {
+                this.isFilterApplied = true;
                 this.levelSelector.selectFloor(level.index, false);
+                this.prevFilter = {
+                    level: name,
+                    space: null
+                };
+
+                if (this.uiCreated) {
+                    const levelLocation = this.findLevelLocationByName(name);
+                    this.selectTreeNode(levelLocation.id, focus);
+                }
             } else {
+                this.isFilterApplied = false;
                 this.levelSelector.selectFloor();
+
+                if (this.uiCreated) {
+                    this.clearTreeNodeSelection();
+                }
             }
+
+            return true;
         }
 
         hoverLevelByName(name) {
@@ -1213,18 +1429,22 @@
             return new Promise((resolve, reject) => {
                 this.roomModel.getBulkProperties2(
                     this.roomDbIds,
-                    { propFilter: ['name', 'Name', 'Level', 'level'] },
+                    { propFilter: ['name', 'Name', 'Level', 'level', 'viewable_in'] },
                     (result) => {
+                        let dbId = null;
                         for (let i = 0; i < result.length; i++) {
                             const data = result[i];
                             const levelMatched = (data.properties.findIndex(p => p.attributeName.toLowerCase() === 'level' && p.displayValue === level) >= 0);
                             const nameMatched = (data.properties.findIndex(p => p.attributeName.toLowerCase() === 'name' && p.displayValue === name) >= 0);
+                            const hasViewable = (data.properties.findIndex(p => p.attributeName.toLowerCase() === 'viewable_in' && p.displayValue != null) >= 0);
 
-                            if (levelMatched && nameMatched) {
-                                resolve(data.dbId);
+                            if (levelMatched && nameMatched && hasViewable) {
+                                dbId = data.dbId;
                                 break;
                             }
                         }
+
+                        resolve(dbId);
                     },
                     (error) => reject(error),
                 );
@@ -1248,11 +1468,39 @@
         async findRoomBoundingBoxByNameAndLevel(name, level) {
             try {
                 const roomDbId = await this.findRoomByNameAndLevel(name, level);
+                if (!roomDbId) {
+                    throw new Error('No Room with given name and level, or no proper viewable for that room');
+                }
+
                 const bounds = this.getRoomBoundingBox(roomDbId);
                 return bounds;
             } catch (ex) {
                 return null;
             }
+        }
+
+        findRoomLocationByNameAndLevel(name, level) {
+            function searchTree(node, pred) {
+                if (pred && pred(node)) {
+                    return node;
+                } else if (node != null) {
+                    let result = null;
+                    for (let i = 0; result == null && i < node.children.length; i++) {
+                        result = searchTree(node.children[i], pred);
+                    }
+                    return result;
+                }
+                return null;
+            }
+
+            const levelData = this.dataProvider.locations.find(lvl => lvl.name.includes(level));
+            let result = null;
+
+            if (levelData) {
+                result = searchTree(levelData, node => node.name.includes(name));
+            }
+
+            return result;
         }
 
         setSectionBox(bounds) {
@@ -1302,20 +1550,57 @@
             this.levelSelector._floorSelectorFilter.filter(this.levelSelector._floorFilterData, levelIdx);
         }
 
-        async setRoomFilterByNameAndLevel(name, level) {
+        async setRoomFilterByNameAndLevel(name, level, focus) {
+            let result = false;
             this.levelSelector.selectFloor();
-            //this.viewer.setCutPlanes();
 
             const levelInfo = this.findLevelByName(level);
+            if (!name || !levelInfo) {
+                this.isFilterApplied = false;
+                this.viewer.setCutPlanes();
+                if (this.uiCreated) {
+                    this.clearTreeNodeSelection();
+                }
+
+                return result;
+            }
+
             const bounds = await this.findRoomBoundingBoxByNameAndLevel(name, level);
+            if (!bounds) {
+                const message = `No Room found with given name \`${name}\` and level \`${level}\`, or no proper viewable for that room`;
+                console.warn(message);
+                alert(message);
+
+                await this.rollback();
+                return result;
+            }
+
             bounds.expandByScalar(2.0);
             bounds.min.z = levelInfo.zMin;
             bounds.max.z = levelInfo.zMax;
 
             this.setSectionBox(bounds);
+            this.isFilterApplied = true;
 
             this.viewer.navigation.fitBounds(false, bounds);
             this.runLevelSelectorFilter(levelInfo);
+
+            result = true;
+            this.prevFilter = {
+                level,
+                space: name
+            };
+
+            if (this.uiCreated) {
+                const roomLocation = this.findRoomLocationByNameAndLevel(name, level);
+                if (!roomLocation) {
+                    return;
+                }
+
+                this.selectTreeNode(roomLocation.id, focus);
+            }
+
+            return result;
         }
 
         async hoverRoom(name, level) {
@@ -1331,6 +1616,30 @@
                 const roomDbId = await this.findRoomByNameAndLevel(name, level);
                 this.viewer.impl.highlightObjectNode(this.roomModel, roomDbId, false);
             } catch (ex) {
+            }
+        }
+
+        async rollback() {
+            if (!this.prevFilter) {
+                return;
+            }
+
+            const { space, level } = this.prevFilter;
+
+            if (space) {
+                await this.setRoomFilterByNameAndLevel(space, level);
+            } else {
+                //this.viewer.setCutPlanes();
+                this.setLevelFilterByName(level);
+            }
+        }
+
+        clearFilter() {
+            // Clear filter
+            if (this.isFilterApplied) {
+                this.clearLevelSelectorFilter();
+                this.viewer.setCutPlanes();
+                this.levelSelector.selectFloor();
             }
         }
 
@@ -1361,7 +1670,8 @@
                         data: nodes,
                         multiple: false,
                         themes: {
-                            icons: false
+                            icons: false,
+                            name: 'default-dark'
                         }
                     },
                     sort: function (a, b) {
@@ -1372,13 +1682,14 @@
                     checkbox: {
                         keep_selected_style: false,
                         three_state: false,
+                        deselect_all: true,
                         cascade: 'none'
                     },
                     types: {
                         levels: {},
                         spaces: {}
                     },
-                    plugins: ['types', 'checkbox', 'sort'],
+                    plugins: ['types', 'checkbox', 'sort', 'wholerow'],
                 })
                 .on('hover_node.jstree', async (e, data) => {
                     if (data.node.type === 'levels') {
@@ -1402,12 +1713,17 @@
                     }
                 })
                 .on('changed.jstree', async (e, data) => {
-                    //console.log(e, data);
+                    // console.log(e, data);
+                    if (!data.node || !data.node.type) {
+                        return;
+                    }
+
+                    //console.log(this.prevFilter);
 
                     if (data.action === 'select_node') {
                         if (data.node.type === 'levels') {
                             const level = data.node.text;
-                            this.viewer.setCutPlanes();
+                            //this.viewer.setCutPlanes();
                             this.setLevelFilterByName(level);
                         } else {
                             const room = data.node.text;
@@ -1417,10 +1733,13 @@
                     } else {
                         if (data.node.type === 'levels') {
                             this.setLevelFilterByName();
-                            // } else {
-                            //     this.viewer.setCutPlanes();
+                        } else {
+                            //this.viewer.setCutPlanes();
+                            await this.setRoomFilterByNameAndLevel();
                         }
                     }
+
+                    //console.log(this.prevFilter);
                 });
         }
     }
@@ -1458,8 +1777,10 @@
             viewer.addPanel(spaceFilterPanel);
 
             this.spaceFilterPanel = spaceFilterPanel;
-            // Pre-load room model
-            await spaceFilterPanel.loadRoomModels();
+            try {
+                // Pre-load room model
+                await spaceFilterPanel.loadRoomModels();
+            } catch { }
 
             const assetListButton = new Autodesk.Viewing.UI.Button('toolbar-bim360AssetList');
             assetListButton.setToolTip('Asset List');
