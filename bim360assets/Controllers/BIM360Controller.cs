@@ -32,6 +32,7 @@ using System.Web;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.WebUtilities;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Http;
 
 namespace bim360assets.Controllers
 {
@@ -280,9 +281,15 @@ namespace bim360assets.Controllers
                 Results = assets.Results
             });
         }
+
         private async Task<IRestResponse> GetAssetsAsync(string projectId, string cursorState, Nullable<int> pageLimit = null)
         {
             Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
+            if (credentials == null)
+            {
+                throw new InvalidOperationException("Failed to refresh access token");
+            }
+
             RestClient client = new RestClient(BASE_URL);
             RestRequest request = new RestRequest("/bim360/assets/v1/projects/{project_id}/assets", RestSharp.Method.GET);
             request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
@@ -298,6 +305,131 @@ namespace bim360assets.Controllers
             {
                 request.AddParameter("limit", pageLimit.Value, ParameterType.QueryString);
             }
+
+            return await client.ExecuteTaskAsync(request);
+        }
+
+        private async Task<bool> GetAllAssetsAsync(string projectId, List<Asset> assets, string cursorState, Nullable<int> pageLimit = null)
+        {
+            projectId = projectId.Replace("b.", string.Empty);
+            IRestResponse assetsResponse = await GetAssetsAsync(projectId, cursorState, pageLimit);
+            var data = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
+
+            if (data.Results == null || data.Results.Count <= 0)
+                return false;
+
+            assets.AddRange(data.Results);
+
+            if (data.Pagination.CursorState != null)
+            {
+                var nextCursorState = new
+                {
+                    offset = data.Pagination.Offset + data.Pagination.Limit,
+                    limit = data.Pagination.Limit
+                };
+                var nextCursorStateStr = JsonConvert.SerializeObject(nextCursorState);
+                var encodedNextCursorStateStr = Convert.ToBase64String(Encoding.UTF8.GetBytes(nextCursorStateStr));
+
+                await GetAllAssetsAsync(projectId, assets, encodedNextCursorStateStr, data.Pagination.Limit);
+            }
+
+            return true;
+        }
+
+        [HttpPatch]
+        [Route("api/forge/bim360/account/{accountId}/project/{projectId}/assets-custom-attributes:batch-update")]
+        public async Task<IActionResult> BatchBIM360AssetsAsync(string accountId, string projectId, [FromBody] List<BatchUpdateAssetCustomAttributeData> data)
+        {
+            var result = new BatchUpdateAssetCustomAttributeResult();
+
+            try
+            {
+                var assets = new List<Asset>();
+                await this.GetAllAssetsAsync(projectId, assets, null, null);
+
+                var attrDefsResponse = await GetCustomAttributeDefsAsync(projectId.Replace("b.", string.Empty));
+                var attrDefs = JsonConvert.DeserializeObject<PaginatedAssetCustomAttributes>(attrDefsResponse.Content);
+                var attrDefMapping = attrDefs.Results.ToDictionary(d => d.DisplayName, d => d);
+                Func<string, string> getAttrDefName = (displayName) => (!string.IsNullOrWhiteSpace(displayName) && attrDefMapping.ContainsKey(displayName)) ? attrDefMapping[displayName].Name : string.Empty;
+
+                foreach (var item in data)
+                {
+                    try
+                    {
+                        var assetId = item.AssetId;
+                        var asset = assets.Where(a =>
+                                        a.Id == assetId ||
+                                        a.ClientAssetId == assetId ||
+                                        (a.CustomAttributes != null && a.CustomAttributes.Values.Any(p => p.ToString().Contains(assetId)))
+                                    )
+                                    .FirstOrDefault();
+
+                        if (asset == null)
+                            throw new Exception("Asset Not Found");
+
+                        var customAttributes = new Dictionary<string, dynamic>();
+
+                        foreach (var val in item.Data)
+                        {
+                            var attrDefName = getAttrDefName(val.Name);
+                            customAttributes.Add(attrDefName, val.Value);
+                        }
+
+                        //System.Diagnostics.Trace.WriteLine(string.Format("{0}, {1}, {2}, {3}", projectId, asset.Id, assetId, JsonConvert.SerializeObject(customAttributes)));
+                        var body = new Dictionary<string, dynamic>();
+                        body.Add("customAttributes", customAttributes);
+
+                        var patchResultRes = await PatchAssetsAsync(projectId, asset.Id, body);
+                        if (patchResultRes.StatusCode == HttpStatusCode.OK)
+                        {
+                            var patchResult = JsonConvert.DeserializeObject<Asset>(patchResultRes.Content);
+                            if (patchResult == null)
+                                throw new Exception("Failed To Patch Asset");
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException(patchResultRes.Content);
+                        }
+
+                        result.SuccessItems.Add(item);
+
+                        await Task.Delay(500);
+                    }
+                    catch (Exception ex)
+                    {
+                        var failedItem = new BatchUpdateFailedAssetCustomAttributeData(item);
+                        failedItem.Error.Message = ex.Message;
+                        failedItem.Error.Type = ex.ToString();
+
+                        result.FailureItems.Add(failedItem);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+            }
+
+            return Ok(result);
+        }
+
+        private async Task<IRestResponse> PatchAssetsAsync(string projectId, string assetId, Dictionary<string, dynamic> data)
+        {
+            Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
+            if (credentials == null)
+            {
+                throw new InvalidOperationException("Failed to refresh access token");
+            }
+
+            RestClient client = new RestClient(BASE_URL);
+            RestRequest request = new RestRequest("/bim360/assets/v1/projects/{project_id}/assets/{asset_id}", RestSharp.Method.PATCH);
+            request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
+            request.AddParameter("asset_id", assetId, ParameterType.UrlSegment);
+            request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
+            request.AddHeader("Content-Type", "application/json");
+
+            var json = JsonConvert.SerializeObject(data);
+            request.AddParameter("text/json", json, ParameterType.RequestBody);
 
             return await client.ExecuteTaskAsync(request);
         }
