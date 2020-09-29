@@ -27,7 +27,7 @@ Uses [Data Management](https://developer.autodesk.com/en/docs/data/v2) to list h
 
 ## Demonstration
 
-[![](http://img.youtube.com/vi/hMM3PqjyY_0/0.jpg)](http://www.youtube.com/watch?v=hMM3PqjyY_0 "Demo the possibility of BIM360 Assets API & Forge Viewer Integration")
+[![](http://img.youtube.com/vi/aNLFpVgeOVc/0.jpg)](http://www.youtube.com/watch?v=aNLFpVgeOVc "Demo the possibility of BIM360 Assets API & Forge Viewer Integration")
 
 ## Live version
 
