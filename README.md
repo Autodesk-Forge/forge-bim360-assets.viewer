@@ -21,7 +21,13 @@ Uses [Data Management](https://developer.autodesk.com/en/docs/data/v2) to list h
 
 ## Thumbnail
 
-<!-- ![thumbnail](/thumbnail.gif) -->
+![thumbnail-1](/thumbnail-1.png)
+
+![thumbnail-2](/thumbnail-2.png)
+
+## Demonstration
+
+[![](http://img.youtube.com/vi/hMM3PqjyY_0/0.jpg)](http://www.youtube.com/watch?v=hMM3PqjyY_0 "Demo the possibility of BIM360 Assets API & Forge Viewer Integration")
 
 ## Live version
 
