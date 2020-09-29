@@ -345,9 +345,9 @@ namespace bim360assets.Controllers
             try
             {
                 var assets = new List<Asset>();
-                await this.GetAllAssetsAsync(projectId, assets, null, null);
+                await this.GetAllAssetsAsync(projectId, assets, null, 100);
 
-                var attrDefsResponse = await GetCustomAttributeDefsAsync(projectId.Replace("b.", string.Empty));
+                var attrDefsResponse = await GetCustomAttributeDefsAsync(projectId.Replace("b.", string.Empty), null, 100);
                 var attrDefs = JsonConvert.DeserializeObject<PaginatedAssetCustomAttributes>(attrDefsResponse.Content);
                 var attrDefMapping = attrDefs.Results.ToDictionary(d => d.DisplayName, d => d);
                 Func<string, string> getAttrDefName = (displayName) => (!string.IsNullOrWhiteSpace(displayName) && attrDefMapping.ContainsKey(displayName)) ? attrDefMapping[displayName].Name : string.Empty;
@@ -438,7 +438,7 @@ namespace bim360assets.Controllers
         [Route("api/forge/bim360/account/{accountId}/project/{projectId}/assets/{assetId}")]
         public async Task<IActionResult> GetBIM360AssetByIdAsync(string accountId, string projectId, string assetId, [FromQuery] bool flatten = false)
         {
-            var asset = await GetAssetsByIdAsync(projectId, assetId, null, null);
+            var asset = await GetAssetsByIdAsync(projectId, assetId, null, 100);
             if (asset == null)
                 return NotFound($"No asset with id: {assetId}");
 
@@ -503,7 +503,7 @@ namespace bim360assets.Controllers
         private async Task<List<ViewerProperty>> FlatProperties(Dictionary<string, object> customAttributes, string projectId)
         {
             var properties = new List<ViewerProperty>();
-            var attrDefsResponse = await GetCustomAttributeDefsAsync(projectId);
+            var attrDefsResponse = await GetCustomAttributeDefsAsync(projectId, null, 100);
             var attrDefs = JsonConvert.DeserializeObject<PaginatedAssetCustomAttributes>(attrDefsResponse.Content);
             var attrDefMapping = attrDefs.Results.ToDictionary(d => d.Name, d => d);
             Func<string, string> getAttrDefName = (name) => (!string.IsNullOrWhiteSpace(name) && attrDefMapping.ContainsKey(name)) ? attrDefMapping[name].DisplayName : string.Empty;
@@ -635,21 +635,31 @@ namespace bim360assets.Controllers
 
         [HttpGet]
         [Route("api/forge/bim360/account/{accountId}/project/{projectId}/asset-custom-attr-defs")]
-        public async Task<IActionResult> GetBIM360CustomAttributeDefsAsync(string accountId, string projectId, [FromQuery] bool buildTree = false)
+        public async Task<IActionResult> GetBIM360CustomAttributeDefsAsync(string accountId, string projectId, [FromQuery] string cursorState, [FromQuery] Nullable<int> pageLimit = null)
         {
-            var attrDefsResponse = await GetCustomAttributeDefsAsync(projectId.Replace("b.", string.Empty));
+            var attrDefsResponse = await GetCustomAttributeDefsAsync(projectId.Replace("b.", string.Empty), cursorState, pageLimit);
             var attrDefs = JsonConvert.DeserializeObject<PaginatedAssetCustomAttributes>(attrDefsResponse.Content);
 
             return Ok(attrDefs.Results);
         }
 
-        private async Task<IRestResponse> GetCustomAttributeDefsAsync(string projectId)
+        private async Task<IRestResponse> GetCustomAttributeDefsAsync(string projectId, string cursorState, Nullable<int> pageLimit = null)
         {
             Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
             RestClient client = new RestClient(BASE_URL);
             RestRequest request = new RestRequest("/bim360/assets/v1/projects/{project_id}/custom-attributes", RestSharp.Method.GET);
             request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
             request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
+
+            if (!string.IsNullOrWhiteSpace(cursorState))
+            {
+                request.AddParameter("cursorState", cursorState, ParameterType.QueryString);
+            }
+
+            if (pageLimit != null && pageLimit.HasValue)
+            {
+                request.AddParameter("limit", pageLimit.Value, ParameterType.QueryString);
+            }
 
             return await client.ExecuteTaskAsync(request);
         }

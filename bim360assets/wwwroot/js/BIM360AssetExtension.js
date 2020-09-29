@@ -720,7 +720,7 @@
             dataTable._createRows();
             this.dataTable = dataTable;
 
-            await this.updateDataTable();
+            await this.updateDataTable(null, 100);
 
             this.createPagination();
             this.updatePagination();
@@ -856,15 +856,15 @@
                     if (externalId)
                         dbId = await this.getAssetViewerId(externalId);
 
-                    this.dehoverAsset(externalId);
-
                     this.viewer.clearSelection();
+
+                    this.dehoverAsset(externalId);
 
                     if (!dbId) {
                         alert(`No External Id value found for Asset \`${asset.clientAssetId}\`!`)
                     } else {
+                        this.dehoverAsset(externalId);
                         this.viewer.fitToView();
-                        this.viewer.select(dbId);
 
                         this.viewer.impl.visibilityManager.aggregateIsolate(
                             [
@@ -877,6 +877,7 @@
                                 hideLoadedModels: true
                             }
                         );
+
                         this.viewer.fitToView([dbId]);
                     }
 
@@ -968,6 +969,10 @@
         async formatProps(dbId) {
             try {
                 const assetId = await this.dataProvider.getAssetId(dbId, this.currentModel);
+                if (!assetId) {
+                    throw new Error(`Asset Not Found (dbId: ${assetId})`);
+                }
+
                 const result = await this.dataProvider.getAssetInfo(assetId);
 
                 return {
@@ -1148,16 +1153,7 @@
 
                 const menuEntry = {
                     title: "Filter",
-                    target: [
-                        {
-                            title: 'Clear Filter',
-                            target: async () => {
-                                try {
-                                    this.dockingPanel.clearFilter();
-                                } catch { }
-                            }
-                        }
-                    ]
+                    target: []
                 };
 
                 let asset = this.getSelectedAsset();
@@ -1190,6 +1186,15 @@
                         }
                     });
                 }
+
+                menuEntry.target.push({
+                    title: 'Clear Filter',
+                    target: async () => {
+                        try {
+                            this.dockingPanel.clearFilter();
+                        } catch { }
+                    }
+                });
 
                 menu.push(menuEntry);
             }
@@ -1582,6 +1587,10 @@
          * Unhide floors, ceilings and etc. that will cover the view while applying level sectioning.
          */
         clearLevelSelectorFilter() {
+            if (!this.levelSelector) {
+                return;
+            }
+
             this.levelSelector._floorSelectorFilter.clearFilter();
         }
 
@@ -1590,6 +1599,10 @@
          * @param {number} levelIdx Level index in the AecModelDAta.
          */
         runLevelSelectorFilter(levelIdx) {
+            if (!this.levelSelector) {
+                return;
+            }
+
             this.clearLevelSelectorFilter();
             this.levelSelector._floorSelectorFilter.filter(this.levelSelector._floorFilterData, levelIdx);
         }
@@ -1679,11 +1692,10 @@
         }
 
         clearFilter() {
-            // Clear filter
-            if (this.isFilterApplied) {
-                this.clearLevelSelectorFilter();
-                this.viewer.setCutPlanes();
-                this.levelSelector.selectFloor();
+            // Clear all filters
+            if (this.isFilterApplied && this.levelSelector) {
+                this.setRoomFilterByNameAndLevel();
+                this.setLevelFilterByName();
             }
         }
 
@@ -1734,6 +1746,16 @@
                         spaces: {}
                     },
                     plugins: ['types', 'checkbox', 'sort', 'wholerow'],
+                })
+                .on('open_node.jstree', (e, data) => {
+                    const node = data.instance.get_node(data.node, true);
+                    if (!node) {
+                        return;
+                    }
+
+                    node.siblings('.jstree-open').each(function () {
+                        data.instance.close_node(this, 0);
+                    });
                 })
                 .on('hover_node.jstree', async (e, data) => {
                     if (data.node.type === 'levels') {

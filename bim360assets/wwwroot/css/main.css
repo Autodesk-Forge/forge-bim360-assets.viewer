@@ -120,6 +120,8 @@ body {
   max-height: 280px;
   width: 315px;
   height: 280px;
+  left: 10px;
+  top: 225px;
 }
 
 .bim360-space-filter-panel .docking-panel-footer {
