@@ -291,9 +291,10 @@ namespace bim360assets.Controllers
             }
 
             RestClient client = new RestClient(BASE_URL);
-            RestRequest request = new RestRequest("/bim360/assets/v1/projects/{project_id}/assets", RestSharp.Method.GET);
+            RestRequest request = new RestRequest("/bim360/assets/v2/projects/{project_id}/assets", RestSharp.Method.GET);
             request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
             request.AddParameter("includeCustomAttributes", true, ParameterType.QueryString);
+            request.AddParameter("sort", "categoryId asc,clientAssetId asc", ParameterType.QueryString);
             request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
 
             if (!string.IsNullOrWhiteSpace(cursorState))
@@ -338,7 +339,7 @@ namespace bim360assets.Controllers
 
         [HttpPatch]
         [Route("api/forge/bim360/account/{accountId}/project/{projectId}/assets-custom-attributes:batch-update")]
-        public async Task<IActionResult> BatchBIM360AssetsAsync(string accountId, string projectId, [FromBody] List<BatchUpdateAssetCustomAttributeData> data)
+        public async Task<IActionResult> PatchBIM360AssetsAsync(string accountId, string projectId, [FromBody] List<BatchUpdateAssetCustomAttributeData> data)
         {
             var result = new BatchUpdateAssetCustomAttributeResult();
 
@@ -422,7 +423,7 @@ namespace bim360assets.Controllers
             }
 
             RestClient client = new RestClient(BASE_URL);
-            RestRequest request = new RestRequest("/bim360/assets/v1/projects/{project_id}/assets/{asset_id}", RestSharp.Method.PATCH);
+            RestRequest request = new RestRequest("/bim360/assets/v2/projects/{project_id}/assets/{asset_id}", RestSharp.Method.PATCH);
             request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
             request.AddParameter("asset_id", assetId, ParameterType.UrlSegment);
             request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
@@ -438,7 +439,7 @@ namespace bim360assets.Controllers
         [Route("api/forge/bim360/account/{accountId}/project/{projectId}/assets/{assetId}")]
         public async Task<IActionResult> GetBIM360AssetByIdAsync(string accountId, string projectId, string assetId, [FromQuery] bool flatten = false)
         {
-            var asset = await GetAssetsByIdAsync(projectId, assetId, null, 100);
+            var asset = await GetAssetsByExtIdAsync(projectId, assetId);
             if (asset == null)
                 return NotFound($"No asset with id: {assetId}");
 
@@ -569,6 +570,66 @@ namespace bim360assets.Controllers
             return properties;
         }
 
+        private async Task<Asset> GetAssetsByIdAsync(string projectId, string id) 
+        {
+            Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
+            if (credentials == null)
+            {
+                throw new InvalidOperationException("Failed to refresh access token");
+            }
+
+            RestClient client = new RestClient(BASE_URL);
+            RestRequest request = new RestRequest("/bim360/assets/v2/projects/{project_id}/assets", RestSharp.Method.GET);
+            request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
+            request.AddParameter("includeCustomAttributes", true, ParameterType.QueryString);
+            request.AddParameter("searchText", id, ParameterType.QueryString);
+            request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
+
+            IRestResponse assetsResponse = await client.ExecuteTaskAsync(request);
+            var assets = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
+
+            if (assets.Results == null || assets.Results.Count <= 0)
+                return null;
+
+            return assets.Results.FirstOrDefault();
+        }
+
+        private async Task<Asset> GetAssetsByExtIdAsync(string projectId, string id) 
+        {
+            Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
+            if (credentials == null)
+            {
+                throw new InvalidOperationException("Failed to refresh access token");
+            }
+
+            var attrDefsResponse = await GetCustomAttributeDefsAsync(projectId.Replace("b.", string.Empty), null, 100);
+            var attrDefs = JsonConvert.DeserializeObject<PaginatedAssetCustomAttributes>(attrDefsResponse.Content);
+            var attrDefMapping = attrDefs.Results.ToDictionary(d => d.DisplayName, d => d);
+            var extIdAttr = attrDefs.Results.First(attr => attr.DisplayName.ToLower().Contains("External Id".ToLower()));
+
+            if(extIdAttr == null)
+            {
+                throw new InvalidOperationException("Failed to get CustomAttribute called `External Id`");
+            }
+
+            RestClient client = new RestClient(BASE_URL);
+            RestRequest request = new RestRequest("/bim360/assets/v2/projects/{project_id}/assets", RestSharp.Method.GET);
+            request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
+            request.AddParameter("includeCustomAttributes", true, ParameterType.QueryString);
+
+            var attrFilter = string.Format("filter[customAttributes][{0}]", extIdAttr.Name);
+            request.AddParameter(attrFilter, id, ParameterType.QueryString);
+            request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
+
+            IRestResponse assetsResponse = await client.ExecuteTaskAsync(request);
+            var assets = JsonConvert.DeserializeObject<PaginatedAssets>(assetsResponse.Content);
+
+            if (assets.Results == null || assets.Results.Count <= 0)
+                return null;
+
+            return assets.Results.FirstOrDefault();
+        }
+
         private async Task<Asset> GetAssetsByIdAsync(string projectId, string id, string cursorState, Nullable<int> pageLimit = null)
         {
             IRestResponse assetsResponse = await GetAssetsAsync(projectId.Replace("b.", string.Empty), cursorState, pageLimit);
@@ -660,24 +721,6 @@ namespace bim360assets.Controllers
             {
                 request.AddParameter("limit", pageLimit.Value, ParameterType.QueryString);
             }
-
-            return await client.ExecuteTaskAsync(request);
-        }
-
-        private async Task<IRestResponse> GetAssetsByIdAsync(string projectId, List<string> ids)
-        {
-            Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
-            RestClient client = new RestClient(BASE_URL);
-            RestRequest request = new RestRequest("/bim360/assets/v1/projects/{project_id}/assets:batch-get", RestSharp.Method.POST);
-            request.AddParameter("project_id", projectId.Replace("b.", string.Empty), ParameterType.UrlSegment);
-            request.AddParameter("includeCustomAttributes", true, ParameterType.QueryString);
-            request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
-
-            var data = new
-            {
-                ids = ids
-            };
-            request.AddParameter("application/json", Newtonsoft.Json.JsonConvert.SerializeObject(data), ParameterType.RequestBody);
 
             return await client.ExecuteTaskAsync(request);
         }
