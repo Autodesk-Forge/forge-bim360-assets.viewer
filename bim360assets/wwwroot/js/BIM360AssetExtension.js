@@ -615,11 +615,12 @@
                         resolve(null);
                     } else {
                         const data = result[0];
-                        if (data.properties.length <= 0) {
-                            resolve(data.externalId);
-                        } else {
-                            resolve(data.properties[0].displayValue);
-                        }
+                        // if (data.properties.length <= 0) {
+                        //     resolve(data.externalId);
+                        // } else {
+                        //     resolve(data.properties[0].displayValue);
+                        // }
+                        resolve(data.externalId);
                     }
                 }
 
@@ -843,7 +844,7 @@
                     this.dehoverAsset(externalId);
                 };
 
-                tableRow.ondblclick = async (event) => {
+                tableRow.onclick = async (event) => {
                     event.preventDefault();
                     event.stopPropagation();
 
