@@ -55,13 +55,15 @@
     }
 
     class BIM360DataProvider {
-        constructor() {
+        constructor(viewer) {
+            this.viewer = viewer;
             this.users = null;
             this.statuses = null;
             this.categories = null;
             this.customAttrDefs = null;
             this.locations = null;
             this.locationBreadcrumbs = null;
+            this.assetInfoCache = null;
         }
 
         dispose() {
@@ -83,6 +85,9 @@
             while (this.locationBreadcrumbs.length > 0) {
                 this.locationBreadcrumbs.pop();
             }
+            while (this.assetInfoCache.length > 0) {
+                this.locationBreadcrumbs.pop();
+            }
 
             this.users = null;
             this.statuses = null;
@@ -90,6 +95,8 @@
             this.customAttrDefs = null;
             this.locations = null;
             this.locationBreadcrumbs = null;
+            this.assetInfoCache = null;
+            this.viewer = null;
         }
 
         async fetchData() {
@@ -98,11 +105,128 @@
                 this.statuses = await this.getAssetStatuses();
                 this.categories = await this.getAssetCategories();
                 this.customAttrDefs = await this.getAssetCustomAttributeDefs();
-                this.locations = await this.getLocations();
-                this.locationBreadcrumbs = await this.getLocationBreadcrumbs();
+                // this.locations = await this.getLocations();
+                // this.locationBreadcrumbs = await this.getLocationBreadcrumbs();
             } catch (ex) {
                 console.warn(`[BIM360DataProvider]: ${ex}`);
             }
+        }
+
+        getLeafNodes(model, dbIds) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const instanceTree = model.getInstanceTree();
+                    dbIds = dbIds || instanceTree.getRootId();
+                    const dbIdArray = Array.isArray(dbIds) ? dbIds : [dbIds]
+                    let leafIds = [];
+
+                    const getLeafNodesRec = (id) => {
+                        let childCount = 0;
+                        instanceTree.enumNodeChildren(id, (childId) => {
+                            getLeafNodesRec(childId);
+                            ++childCount;
+                        })
+                        if (childCount == 0) {
+                            leafIds.push(id);
+                        }
+                    }
+
+                    for (let i = 0; i < dbIdArray.length; ++i) {
+                        getLeafNodesRec(dbIdArray[i]);
+                    }
+
+                    return resolve(leafIds);
+                } catch (ex) {
+                    return reject(ex)
+                }
+            })
+        }
+
+        buildAssetInfoCache(model) {
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const leafNodeIds = await this.getLeafNodes(model);
+                    model.getBulkProperties2(
+                        leafNodeIds,
+                        { propFilter: ['Asset ID', 'Asset Location', 'Asset Category', 'externalId', 'name'], ignoreHidden: true, needsExternalId: true },
+                        result => {
+                            const data = {};
+                            for (let i = 0; i < result.length; i++) {
+                                const assetInfo = result[i];
+                                const externalId = assetInfo.externalId;
+                                const name = assetInfo.name;
+                                const assetId = assetInfo.properties.find(prop => prop.displayName === 'Asset ID' || prop.attributeName === 'Asset ID')?.displayValue;
+                                const location = assetInfo.properties.find(prop => prop.displayName === 'Asset Location' || prop.attributeName === 'Asset Location')?.displayValue;
+                                const category = assetInfo.properties.find(prop => prop.displayName === 'Asset Category' || prop.attributeName === 'Asset Category')?.displayValue;
+
+                                if (data.hasOwnProperty(externalId))
+                                    continue;
+
+                                data[externalId] = {
+                                    externalId,
+                                    name,
+                                    assetId,
+                                    location,
+                                    category
+                                };
+                            }
+
+                            this.assetInfoCache = data;
+                            return resolve(data);
+                        },
+                        (error) => reject(error));
+                } catch (ex) {
+                    return reject(ex)
+                }
+            });
+        }
+
+        buildLocationsFromRoomProps(roomData) {
+            return new Promise(async (resolve, reject) => {
+                if (!roomData)
+                    return reject(new Error('Empty roomData'));
+
+                try {
+                    const { dbIds, model } = roomData;
+                    const locations = model.getDocumentNode().getAecModelData().levels.map((lvl, idx) => {
+                        return { id: lvl.guid, name: lvl.name, type: 'Area', order: idx + 1, children: [] };
+                    });
+
+                    const getRoomInfo = (dbIds, model) => {
+                        return new Promise((resolve2, reject2) => {
+                            model.getBulkProperties2(
+                                dbIds,
+                                { propFilter: ['Name', 'externalId', 'Level'], ignoreHidden: true, needsExternalId: true },
+                                result => {
+                                    for (let i = 0; i < result.length; i++) {
+                                        const roomInfo = result[i];
+                                        const guid = roomInfo.externalId;
+                                        const level = roomInfo.properties.find(prop => prop.displayName === 'Level' || prop.attributeName === 'Level')?.displayValue;
+                                        const name = roomInfo.properties.find(prop => prop.displayName === 'Name' || prop.attributeName === 'Name')?.displayValue;
+                                        const parent = locations.find(lvl => lvl.name.toLowerCase().includes(level.toLowerCase()));
+
+                                        if (!parent || !level || !name) continue;
+
+                                        parent.children.push({ id: guid, name, parentId: parent.id, type: 'Area', order: i + 1, children: [] });
+                                    }
+
+                                    return resolve2();
+                                },
+                                (error) => reject2(error));
+                        });
+                    };
+
+
+                    await getRoomInfo(dbIds, model);
+
+                    this.locations = locations;
+                    this.locationBreadcrumbs = await this.getLocationBreadcrumbs();
+
+                    resolve(locations);
+                } catch {
+                    reject(new Error('Failed to build location data from room props'));
+                }
+            });
         }
 
         async getHqProjectId(href) {
@@ -327,7 +451,8 @@
         async getLocationBreadcrumbs() {
             return new Promise(async (resolve, reject) => {
                 try {
-                    const locations = await this.getLocations();
+                    //const locations = await this.getLocations();
+                    const locations = this.locations;
 
                     const result = [];
                     for (let i = 0; i < locations.length; i++) {
@@ -445,7 +570,15 @@
             const installedByUser = this.users[asset.installedBy];
             const status = this.statuses[asset.statusId];
             const category = this.categories[asset.categoryId];
-            const location = this.locationBreadcrumbs[asset.locationId];
+            let location = null;
+            if (this.locationBreadcrumbs.hasOwnProperty(asset.locationId)) {
+                location = this.locationBreadcrumbs[asset.locationId];
+            } else {
+                const assetInfoFromCache = Object.values(this.assetInfoCache).find(c => c.assetId === asset.clientAssetId);
+                if (assetInfoFromCache != null) {
+                    location = assetInfoFromCache.location;
+                }
+            }
 
             asset.createdByUser = createdByUser ? createdByUser.name : '';
             asset.updatedByUser = updatedByUser ? updatedByUser.name : '';
@@ -605,6 +738,41 @@
                         resolve(data);
                     })
                     .catch((error) => reject(error));
+            });
+        }
+
+        async searchAssetLocationById(assetId, model) {
+            return new Promise((resolve, reject) => {
+                function onSuccess(dbIds) {
+                    if (!dbIds || dbIds.length <= 0) {
+                        resolve(null);
+                    } else {
+                        model.getBulkProperties2(
+                            dbIds,
+                            { propFilter: ['Asset ID', 'externalId', 'name', 'Asset Location'] },
+                            result => {
+                                if (!result || result.length <= 0) {
+                                    resolve(null);
+                                } else {
+                                    const location = result[0].properties.find(prop => prop.displayName === 'Asset Location' || prop.attributeName === 'Asset Location')?.displayValue;
+                                    if (!location) {
+                                        resolve(null);
+                                    } else {
+                                        resolve(location);
+                                    }
+                                }
+                            },
+                            error => reject(error)
+                        );
+                    }
+                }
+
+                model.search(
+                    assetId,
+                    onSuccess,
+                    error => reject(error),
+                    ['Asset ID']
+                );
             });
         }
 
@@ -1815,7 +1983,7 @@
         constructor(viewer, options) {
             super(viewer, options);
 
-            const dataProvider = new BIM360DataProvider();
+            const dataProvider = new BIM360DataProvider(viewer);
             this.dataProvider = dataProvider;
 
             this.assetListPanel = null;
@@ -1847,6 +2015,13 @@
             try {
                 // Pre-load room model
                 await spaceFilterPanel.loadRoomModels();
+                await this.dataProvider.buildLocationsFromRoomProps({
+                    dbIds: spaceFilterPanel.roomDbIds,
+                    model: spaceFilterPanel.roomModel
+                });
+
+                // Cache asset props from load master model
+                await this.dataProvider.buildAssetInfoCache(viewer.model);
             } catch { }
 
             const assetListButton = new Autodesk.Viewing.UI.Button('toolbar-bim360AssetList');

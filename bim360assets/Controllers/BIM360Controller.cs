@@ -596,24 +596,24 @@ namespace bim360assets.Controllers
             return await client.ExecuteTaskAsync(request);
         }
 
-        [HttpGet]
-        [Route("api/forge/bim360/account/{accountId}/project/{projectId}/locations")]
-        public async Task<IActionResult> GetBIM360LocationsAsync(string accountId, string projectId, [FromQuery] bool buildTree = false)
-        {
-            IRestResponse locsResponse = await GetLocationsAsync(accountId, projectId);
-            var locations = JsonConvert.DeserializeObject<PaginatedLocations>(locsResponse.Content);
+        // [HttpGet]
+        // [Route("api/forge/bim360/account/{accountId}/project/{projectId}/locations")]
+        // public async Task<IActionResult> GetBIM360LocationsAsync(string accountId, string projectId, [FromQuery] bool buildTree = false)
+        // {
+        //     IRestResponse locsResponse = await GetLocationsAsync(accountId, projectId);
+        //     var locations = JsonConvert.DeserializeObject<PaginatedLocations>(locsResponse.Content);
 
-            if (buildTree == false)
-            {
-                return Ok(locations.Results);
-            }
-            else
-            {
-                var root = locations.Results.FirstOrDefault();
-                var tree = Location.BuildTree(locations.Results, root.Id);
-                return Ok(tree);
-            }
-        }
+        //     if (buildTree == false)
+        //     {
+        //         return Ok(locations.Results);
+        //     }
+        //     else
+        //     {
+        //         var root = locations.Results.FirstOrDefault();
+        //         var tree = Location.BuildTree(locations.Results, root.Id);
+        //         return Ok(tree);
+        //     }
+        // }
 
         private async Task<string> GetContainerIdAsync(string accountId, string projectId, ContainerType type)
         {
@@ -643,19 +643,19 @@ namespace bim360assets.Controllers
             return containerId;
         }
 
-        private async Task<IRestResponse> GetLocationsAsync(string accountId, string projectId)
-        {
-            var containerId = await GetContainerIdAsync(accountId, projectId, ContainerType.Locations);
+        // private async Task<IRestResponse> GetLocationsAsync(string accountId, string projectId)
+        // {
+        //     var containerId = await GetContainerIdAsync(accountId, projectId, ContainerType.Locations);
 
-            Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
+        //     Credentials credentials = await Credentials.FromSessionAsync(base.Request.Cookies, Response.Cookies);
 
-            RestClient client = new RestClient(BASE_URL);
-            RestRequest request = new RestRequest("/bim360/locations/v2/containers/{container_id}/trees/{tree_id}/nodes", RestSharp.Method.GET);
-            request.AddParameter("container_id", containerId, ParameterType.UrlSegment);
-            request.AddParameter("tree_id", "default", ParameterType.UrlSegment);
-            request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
+        //     RestClient client = new RestClient(BASE_URL);
+        //     RestRequest request = new RestRequest("/bim360/locations/v2/containers/{container_id}/trees/{tree_id}/nodes", RestSharp.Method.GET);
+        //     request.AddParameter("container_id", containerId, ParameterType.UrlSegment);
+        //     request.AddParameter("tree_id", "default", ParameterType.UrlSegment);
+        //     request.AddHeader("Authorization", "Bearer " + credentials.TokenInternal);
 
-            return await client.ExecuteTaskAsync(request);
-        }
+        //     return await client.ExecuteTaskAsync(request);
+        // }
     }
 }
