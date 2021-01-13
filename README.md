@@ -15,9 +15,13 @@
 
 **Under Construction**
 
-Demonstrate how to read BIM 360 **Assets** with Forge Viewer.
+Demonstrate how to read BIM 360 **Assets** data with Forge Viewer.
 
-Uses [Data Management](https://developer.autodesk.com/en/docs/data/v2) to list hubs, projects and files. Uses [Viewer](https://developer.autodesk.com/en/docs/viewer/v6/overview/) to show models and extensions to create toolbar buttons and panels. The lists [BIM 360](https://developer.autodesk.com/en/docs/bim360/v1/overview/) Assets on the panel.
+Uses [Data Management](https://developer.autodesk.com/en/docs/data/v2) to list hubs, projects and files. Uses [Viewer](https://developer.autodesk.com/en/docs/viewer/v6/overview/) to show models and extensions to create toolbar buttons and panels. The sample implements the following features in the **BIM360AssetExtension.js**:
+
+- **BIM360AssetListPanel**: Lists [BIM 360](https://developer.autodesk.com/en/docs/bim360/v1/overview/) Assets on a data table with pagination support on the panel
+- **BIM360AssetInfoPanel**: Display asset data of selected object from [BIM 360](https://developer.autodesk.com/en/docs/bim360/v1/overview/) Assets module.
+- **BIM360SpaceFilterPanel**: Lists levels and rooms of the RVT model in a tree hierarchy, and it can apply proper section box (filter) to the model upon checked level or room to bring better view for assets.
 
 ## Thumbnail
 
@@ -42,6 +46,17 @@ Uses [Data Management](https://developer.autodesk.com/en/docs/data/v2) to list h
 3. **Visual Studio**: Either Community 2017+ (Windows) or Code (Windows, MacOS).
 4. **.NET Core** basic knowledge with C#
 5. **JavaScript** basic knowledge with **jQuery**
+
+## Sample Files
+
+Check `Sample Files` folder for testing RVT files, it includes assets with preset Revit shared parameters (`Asset ID`, `Asset Location` and `Asset Category`) that can be used to initialize your demo project of the BIM360 Assets. To import that data, please checkout these two awesome samples: [forge-bim360.asset.exchange.excel](https://github.com/xiaodongliang/forge-bim360.asset.exchange.excel) and [forge-revit.extract.assert-bim360](https://github.com/JohnOnSoftware/forge-revit.extract.assert-bim360).
+
+### Work with your models
+
+To work with your own RVT model, you can take advantage of two Dynamo Scripts inside the `Sample Files`:
+
+- **ListAssetLocation.dyn**: Lists locations data (levels and rooms) and export to Excel file for setting up your BIM360 [Locations](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Administration_About_Project_Admin_about_location_html) data.
+- **ListElementsByRooms.dyn**: Creates necessary Revit shared parameters (`Asset ID`, `Asset Location` and `Asset Category`) and set up their values for Mechanical Equipments, Air Terminals, Electric Fixtures, Electrical Equipments, Lighting Devices, and Lighting Fixtures, then export those parameter values Excel file for setting up your BIM360 [Assets](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_about_assets_assets_overview_html) data.
 
 ## Running locally
 
