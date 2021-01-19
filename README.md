@@ -25,13 +25,31 @@ Uses [Data Management](https://developer.autodesk.com/en/docs/data/v2) to list h
 
 ## Thumbnail
 
+This picture shows the functionalities of the `BIM360AssetExtension` from left-bottom side to right side accordingly are `BIM360SpaceFilterPanel`, `BIM360AssetListPanel` and `BIM360AssetInfoPanel`. The view is activating the level filter (sectioning) of the `BIM360SpaceFilterPanel` and showing the selected air terminal's asset info from the BIM360 Assets service by `BIM360AssetInfoPanel`.
+
 ![thumbnail-1](/thumbnail-1.png)
+
+This picture shows similar functionalities as the above one does, but the view activates the room filter of the `BIM360SpaceFilterPanel` where the selected air terminal is located instead.
 
 ![thumbnail-2](/thumbnail-2.png)
 
 ## Demonstration
 
+Here is the video demonstrating how this sample works quickly. First, it shows data of BIM360 Assets on the BIM360 Web UI, then go to the viewer sample to open `BIM360AssetListPanel`, `BIM360AssetInfoPanel` and `BIM360SpaceFilterPanel` sequentially, and data shown on the `BIM360AssetListPanel` is the same as we see on the BIM360 Web UI.
+
 [![](http://img.youtube.com/vi/aNLFpVgeOVc/0.jpg)](http://www.youtube.com/watch?v=aNLFpVgeOVc "Demo the possibility of BIM360 Assets API & Forge Viewer Integration")
+
+**Note:** Demo video comes with subtitle. Click `CC` button while playing the video and configure it with the options below:
+
+![Demo video subtitle configuration](/demo-video.png)
+
+## Limitation
+
+- The BIM360 [Locations](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Administration_About_Project_Admin_about_location_html) API is not yet publicly released yet (still in private beta currently), so you will need to set up extra properties in the Revit model. Please check [Import sample data](#import-sample-data) for the detail instructions.
+
+- This sample doesn't SVF2 yet since hidden fragments are ignored by the viewer (v7.34) currently.
+
+- This sample support models of Revit 2018 and later only due to the supports of the [AecModelData](https://forge.autodesk.com/blog/consume-aec-data-which-are-model-derivative-api) and [Master views](https://forge.autodesk.com/blog/new-rvt-svf-model-derivative-parameter-generates-additional-content-including-rooms-and-spaces).
 
 ## Live version
 
@@ -47,16 +65,65 @@ Uses [Data Management](https://developer.autodesk.com/en/docs/data/v2) to list h
 4. **.NET Core** basic knowledge with C#
 5. **JavaScript** basic knowledge with **jQuery**
 
-## Sample Files
+## Import sample data
 
-Check `Sample Files` folder for testing RVT files, it includes assets with preset Revit shared parameters (`Asset ID`, `Asset Location` and `Asset Category`) that can be used to initialize your demo project of the BIM360 Assets. To import that data, please checkout these two awesome samples: [forge-bim360.asset.exchange.excel](https://github.com/xiaodongliang/forge-bim360.asset.exchange.excel) and [forge-revit.extract.assert-bim360](https://github.com/JohnOnSoftware/forge-revit.extract.assert-bim360).
+### Sample files
+
+Check the `Sample Files` folder for the sample RVT file and sample data before running the app. It includes the following:
+
+- **asset_rme_advanced_sample_project.rvt**: The sample Revit file includes assets with preset Revit shared parameters (`Asset ID`, `Asset Location`, and `Asset Category`) that can be used to initialize your BIM360 Assets demo project.
+
+- **asset-rme-advanced-sample-project-locations-import.xlsx**: The sample spreadsheet file includes a location break down hierarchy data (e.g., levels and rooms) of the sample Revit model for setting up your project's BIM360 [Locations](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Administration_About_Project_Admin_about_location_html) service.
+
+- **asset-rme-advanced-sample-project-assets-import.xlsx**: The sample spreadsheet file includes assets data extracted from the sample Revit model.
+
+- **Dynamo Scripts**: It contains two [Dynamo](https://dynamobim.org/) scripts for setting up your Revit models and preparing data spreadsheet files for importing into  BIM360 [Assets](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_about_assets_assets_overview_html).
+
+    - **ListAssetLocation.dyn**: Lists locations data (levels & rooms) and export to spreadsheet file (`asset_location_data_export.csv`) for setting up your BIM360 [Locations](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Administration_About_Project_Admin_about_location_html) data, but since Locations API is not yet publicly released yet (still in private beta currently) 
+
+    - **ListElementsByRooms.dyn**: Creates necessary Revit shared parameters (`Asset ID`, `Asset Location` and `Asset Category`) and set up their values for Mechanical Equipments, Air Terminals, Electric Fixtures, Electrical Equipments, Lighting Devices, and Lighting Fixtures, then export those parameter values spreadsheet file (`asset_data_export.csv`) for setting up your BIM360 [Assets](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_about_assets_assets_overview_html) data.
+
+**Note:** There should have rooms that existed inside the Revit models before executing the scripts.
+
+### Work with the sample model
+
+Follow the following steps to set up your BIM360 Assets module to run this viewer sample:
+
+1. Activate the Assets module of your BIM360 project inside the [project admin](https://help.autodesk.com/view/BIM360D/ENU/?guid=GUID-62233D06-249B-4D6E-BC05-5303642220A3).
+
+2. Go to [Asset service management page](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_set_up_assets_set_up_html) of the project admin, and click on the **Locations**, then follow the instructions of [Import Locations from Excel](https://help.autodesk.com/view/BIM360D/ENU/?guid=GUID-045C527B-6754-4789-9B39-5477C36D20C6) to import `asset-rme-advanced-sample-project-locations-import.xlsx`.
+
+3. Go to [Custom Attributes](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_set_up_assets_custom_attributes_status_html) of the Asset service management page, and create a text type custom attribute called `External Id`.
+
+4. Go to the Asset module page of your project, and follow instruction [here](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_create_track_assets_create_track_html) to import `asset-rme-advanced-sample-project-assets-import.xlsx`.
+
+5. Upload `asset_rme_advanced_sample_project.rvt` to the `Project File` folder of your Document Management module.
+
+[![https://youtu.be/HMiWv9ULrvE](http://img.youtube.com/vi/HMiWv9ULrvE/0.jpg)](https://youtu.be/HMiWv9ULrvE "BIM360 Assets API & Viewer Integration Sample File Setup")
 
 ### Work with your models
 
-To work with your own RVT model, you can take advantage of two Dynamo Scripts inside the `Sample Files`:
+1. Open your Revit models and run both Dynamo scripts, `ListAssetLocation.dyn` and `ListElementsByRooms.dyn`, to initialize request parameters and data for BIM360 [Assets](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_about_assets_assets_overview_html), then you will get two spreadsheet files, `asset_location_data_export.csv` and `asset_data_export.csv`. (See [Sample files](#sample-files) for the script details)
 
-- **ListAssetLocation.dyn**: Lists locations data (levels and rooms) and export to Excel file for setting up your BIM360 [Locations](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Administration_About_Project_Admin_about_location_html) data.
-- **ListElementsByRooms.dyn**: Creates necessary Revit shared parameters (`Asset ID`, `Asset Location` and `Asset Category`) and set up their values for Mechanical Equipments, Air Terminals, Electric Fixtures, Electrical Equipments, Lighting Devices, and Lighting Fixtures, then export those parameter values Excel file for setting up your BIM360 [Assets](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_about_assets_assets_overview_html) data.
+2. Save the changes of your Revit model made by the Dynamo scripts.
+
+3. Replace contents of both `asset-rme-advanced-sample-project-locations-import.xlsx` and `asset-rme-advanced-sample-project-assets-import.xlsx` with the contents of the two `CSV` files you got from **step 1**.
+
+4. Activate the Assets module of your BIM360 project inside the [project admin](https://help.autodesk.com/view/BIM360D/ENU/?guid=GUID-62233D06-249B-4D6E-BC05-5303642220A3).
+
+5. Go to [Asset service management page](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_set_up_assets_set_up_html) of the project admin, and click on the **Locations**, then follow the instructions of [Import Locations from Excel](https://help.autodesk.com/view/BIM360D/ENU/?guid=GUID-045C527B-6754-4789-9B39-5477C36D20C6) to import your `locations-import.xlsx` with changes made from **step 3**.
+
+6. Go to [Custom Attributes](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_set_up_assets_custom_attributes_status_html) of the Asset service management page, and create a text type custom attribute called `External Id`.
+
+7. Go to the Asset module page of your project, and follow instruction [here](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_create_track_assets_create_track_html) to import your `assets-import.xlsx` with changes made from **step 3**.
+
+8. Upload your Revit model with changes made from **step 2** to the `Project File` folder of your Document Management module.
+
+**Note:** You can also checkout these two awesome samples to import/extort assets configurations:
+
+- [forge-bim360.asset.exchange.excel](https://github.com/xiaodongliang/forge-bim360.asset.exchange.excel)
+
+- [forge-revit.extract.assert-bim360](https://github.com/JohnOnSoftware/forge-revit.extract.assert-bim360)
 
 ## Running locally
 
@@ -66,7 +133,7 @@ Clone this project or download it. It's recommended to install [GitHub desktop](
 
 **Visual Studio** (Windows):
 
-Right-click on the project, then go to **Debug**. Adjust the settings as shown below. 
+Right-click on the project, then go to **Debug**. Adjust the settings as shown below.
 
 ![](bim360issues/wwwroot/img/readme/visual_studio_settings.png) 
 
@@ -88,7 +155,7 @@ At the `.vscode\launch.json`, find the env vars and add your Forge Client ID, Se
 },
 ```
 
-Run the app. Open `http://localhost:3000` to view your files. It may be required to **Enable my BIM 360 Account** (see app top-right). Click on 
+Run the app. Open `http://localhost:3000` to view your files. It may be required to **Enable my BIM 360 Account** (see app top-right).
 
 ## Deployment
 
@@ -102,15 +169,18 @@ Watch [this video](https://www.youtube.com/watch?v=Oqa9O20Gj0c) on how deploy sa
 
 Documentation:
 
+- BIM 360 Assets API
+    - [Using the Assets API](https://forge.autodesk.com/en/docs/bim360-private/v1/overview/field-guide/using-assets-api/)
+    - [Assets Related APIs](https://forge.autodesk.com/en/docs/bim360-private/v1/overview/field-guide/assets-related-apis/)
 - [BIM 360 API](https://developer.autodesk.com/en/docs/bim360/v1/overview/) and [App Provisioning](https://forge.autodesk.com/blog/bim-360-docs-provisioning-forge-apps)
 - [Data Management API](https://developer.autodesk.com/en/docs/data/v2/overview/)
 - [Viewer](https://developer.autodesk.com/en/docs/viewer/v6)
 
 Tutorials:
 
-- [View BIM 360 Models](http://learnforge.autodesk.io/#/tutorials/viewhubmodels)
-- [Using the Assets API](https://forge.autodesk.com/en/docs/bim360-private/v1/overview/field-guide/using-assets-api/)
-- [Assets Related APIs](https://forge.autodesk.com/en/docs/bim360-private/v1/overview/field-guide/assets-related-apis/)
+- Assets API Tutorial (TBD)
+- Assets API Tutorial 2 (TBD)
+- [Learn Forge - View BIM 360 Models](http://learnforge.autodesk.io/#/tutorials/viewhubmodels)
 
 Blogs:
 
