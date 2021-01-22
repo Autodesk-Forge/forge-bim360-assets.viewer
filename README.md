@@ -53,7 +53,7 @@ Here is the video demonstrating how this sample works quickly. First, it shows d
 
 ## Live version
 
-[bim360assets.herokuapp.com](https://bim360assets.herokuapp.com/)
+[bim360assets.herokuapp.com](https://bim360assets.herokuapp.com/), and follow instructions of the [Work with the sample model](#work-with-the-sample-model) to import up sample data.
 
 # Setup
 
@@ -71,17 +71,17 @@ Here is the video demonstrating how this sample works quickly. First, it shows d
 
 Check the [SampleFiles](SampleFiles) folder for the sample RVT file and sample data before running the app. It includes the following:
 
-- **asset_rme_advanced_sample_project.rvt**: The sample Revit file includes assets with preset Revit shared parameters (`Asset ID`, `Asset Location`, and `Asset Category`) that can be used to initialize your BIM360 Assets demo project.
+- [asset_rme_advanced_sample_project.rvt](SampleFiles/asset_rme_advanced_sample_project.rvt): The sample Revit file includes assets with preset Revit shared parameters (`Asset ID`, `Asset Location`, and `Asset Category`) that can be used to initialize your BIM360 Assets demo project.
 
-- **asset-rme-advanced-sample-project-locations-import.xlsx**: The sample spreadsheet file includes a location break down hierarchy data (e.g., levels and rooms) of the sample Revit model for setting up your project's BIM360 [Locations](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Administration_About_Project_Admin_about_location_html) service.
+- [asset-rme-advanced-sample-project-locations-import.xlsx](SampleFiles/asset-rme-advanced-sample-project-locations-import.xlsx): The sample spreadsheet file includes a location break down hierarchy data (e.g., levels and rooms) of the sample Revit model for setting up your project's BIM360 [Locations](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Administration_About_Project_Admin_about_location_html) service.
 
-- **asset-rme-advanced-sample-project-assets-import.xlsx**: The sample spreadsheet file includes assets data extracted from the sample Revit model.
+- [asset-rme-advanced-sample-project-assets-import.xlsx](SampleFiles/asset-rme-advanced-sample-project-assets-import.xlsx): The sample spreadsheet file includes assets data extracted from the sample Revit model.
 
-- **Dynamo Scripts**: It contains two [Dynamo](https://dynamobim.org/) scripts for setting up your Revit models and preparing data spreadsheet files for importing into  BIM360 [Assets](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_about_assets_assets_overview_html).
+- [DynamoScripts](SampleFiles/DynamoScripts): It contains two [Dynamo](https://dynamobim.org/) scripts for setting up your Revit models and preparing data spreadsheet files for importing into  BIM360 [Assets](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_about_assets_assets_overview_html).
 
-    - **ListAssetLocation.dyn**: Lists locations data (levels & rooms) and export to spreadsheet file (`asset_location_data_export.csv`) for setting up your BIM360 [Locations](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Administration_About_Project_Admin_about_location_html) data, but since Locations API is not yet publicly released yet (still in private beta currently) 
+    - [ListAssetLocation.dyn](SampleFiles/DynamoScripts/ListAssetLocation.dyn): Lists locations data (levels & rooms) and export to spreadsheet file (`asset_location_data_export.csv`) for setting up your BIM360 [Locations](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Administration_About_Project_Admin_about_location_html) data, but since Locations API is not yet publicly released yet (still in private beta currently)
 
-    - **ListElementsByRooms.dyn**: Creates necessary Revit shared parameters (`Asset ID`, `Asset Location` and `Asset Category`) and set up their values for Mechanical Equipments, Air Terminals, Electric Fixtures, Electrical Equipments, Lighting Devices, and Lighting Fixtures, then export those parameter values spreadsheet file (`asset_data_export.csv`) for setting up your BIM360 [Assets](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_about_assets_assets_overview_html) data.
+    - [ListElementsByRooms.dyn](SampleFiles/DynamoScripts/ListElementsByRooms.dyn): Creates necessary Revit shared parameters (`Asset ID`, `Asset Location` and `Asset Category`) and set up their values for Mechanical Equipments, Air Terminals, Electric Fixtures, Electrical Equipments, Lighting Devices, and Lighting Fixtures, then export those parameter values spreadsheet file (`asset_data_export.csv`) for setting up your BIM360 [Assets](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_about_assets_assets_overview_html) data.
 
 **Note:** There should have rooms that existed inside the Revit models before executing the scripts.
 
