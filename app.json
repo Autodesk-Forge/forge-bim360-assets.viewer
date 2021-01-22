@@ -6,7 +6,9 @@
     "keywords": [
         "autodesk",
         "forge",
-        "bim360"
+        "bim360",
+        "assets",
+        "forge-viewer"
     ],
     "env": {
         "FORGE_CLIENT_ID": {

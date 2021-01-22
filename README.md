@@ -2,32 +2,30 @@
 
 ![Platforms](https://img.shields.io/badge/platform-Windows|MacOS-lightgray.svg)
 ![.NET](https://img.shields.io/badge/.NET%20Core-3.1-blue.svg)
-[![License](http://img.shields.io/:license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
+[![MIT](https://img.shields.io/badge/License-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 
-[![oAuth2](https://img.shields.io/badge/oAuth2-v1-green.svg)](http://developer.autodesk.com/)
-[![Data-Management](https://img.shields.io/badge/Data%20Management-v1-green.svg)](http://developer.autodesk.com/)
-[![Viewer](https://img.shields.io/badge/Viewer-v6-green.svg)](http://developer.autodesk.com/)
-[![BIM-360](https://img.shields.io/badge/BIM%20360-v1-green.svg)](http://developer.autodesk.com/)
+[![oAuth2](https://img.shields.io/badge/oAuth2-v1-green.svg)](http://forge.autodesk.com/)
+[![Data-Management](https://img.shields.io/badge/Data%20Management-v1-green.svg)](http://forge.autodesk.com/)
+[![Viewer](https://img.shields.io/badge/Viewer-v7-green.svg)](http://forge.autodesk.com/)
+[![BIM-360-Assets](https://img.shields.io/badge/BIM%20360%20Assets-v1%20beta-green.svg)](http://forge.autodesk.com/)
 
-![Intermediate](https://img.shields.io/badge/Level-Intermediate-blue.svg)
+![Advanced](https://img.shields.io/badge/Level-Advanced-red.svg)
 
 # Description
 
-**Under Construction**
-
 Demonstrate how to read BIM 360 **Assets** data with Forge Viewer.
 
-Uses [Data Management](https://developer.autodesk.com/en/docs/data/v2) to list hubs, projects and files. Uses [Viewer](https://developer.autodesk.com/en/docs/viewer/v6/overview/) to show models and extensions to create toolbar buttons and panels. The sample implements the following features in the **BIM360AssetExtension.js**:
+Uses [Data Management](https://forge.autodesk.com/en/docs/data/v2) to list hubs, projects and files. Uses [Viewer](https://forge.autodesk.com/en/docs/viewer/v6/overview/) to show models and extensions to create toolbar buttons and panels. The sample implements the following features in the **BIM360AssetExtension.js**:
 
-- **BIM360AssetListPanel**: Lists [BIM 360](https://developer.autodesk.com/en/docs/bim360/v1/overview/) Assets on a data table with pagination support on the panel
-- **BIM360AssetInfoPanel**: Display asset data of selected object from [BIM 360](https://developer.autodesk.com/en/docs/bim360/v1/overview/) Assets module.
+- **BIM360AssetListPanel**: Lists [BIM 360](https://forge.autodesk.com/en/docs/bim360/v1/overview/) Assets on a data table with pagination support on the panel
+- **BIM360AssetInfoPanel**: Display asset data of selected object from [BIM 360](https://forge.autodesk.com/en/docs/bim360/v1/overview/) Assets module.
 - **BIM360SpaceFilterPanel**: Lists levels and rooms of the RVT model in a tree hierarchy, and it can apply proper section box (filter) to the model upon checked level or room to bring better view for assets.
 
 ## Thumbnail
 
 This picture shows the functionalities of the `BIM360AssetExtension` from left-bottom side to right side accordingly are `BIM360SpaceFilterPanel`, `BIM360AssetListPanel` and `BIM360AssetInfoPanel`. The view is activating the level filter (sectioning) of the `BIM360SpaceFilterPanel` and showing the selected air terminal's asset info from the BIM360 Assets service by `BIM360AssetInfoPanel`.
 
-![thumbnail-1](/thumbnail-1.png)
+![thumbnail](/thumbnail.png)
 
 This picture shows similar functionalities as the above one does, but the view activates the room filter of the `BIM360SpaceFilterPanel` where the selected air terminal is located instead.
 
@@ -38,8 +36,9 @@ This picture shows similar functionalities as the above one does, but the view a
 Here is the video demonstrating how this sample works quickly. First, it shows data of BIM360 Assets on the BIM360 Web UI, then go to the viewer sample to open `BIM360AssetListPanel`, `BIM360AssetInfoPanel` and `BIM360SpaceFilterPanel` sequentially, and data shown on the `BIM360AssetListPanel` is the same as we see on the BIM360 Web UI.
 
 [![](http://img.youtube.com/vi/aNLFpVgeOVc/0.jpg)](http://www.youtube.com/watch?v=aNLFpVgeOVc "Demo the possibility of BIM360 Assets API & Forge Viewer Integration")
+[Click here or click on the above picture to view the video](http://www.youtube.com/watch?v=aNLFpVgeOVc)
 
-**Note:** Demo video comes with subtitle. Click `CC` button while playing the video and configure it with the options below:
+**Note:** Demo video comes with subtitle. Click `CC` of YouTube video player button while playing the video and configure it with the options below for better video-watching experience:
 
 ![Demo video subtitle configuration](/demo-video.png)
 
@@ -69,7 +68,7 @@ Here is the video demonstrating how this sample works quickly. First, it shows d
 
 ### Sample files
 
-Check the `Sample Files` folder for the sample RVT file and sample data before running the app. It includes the following:
+Check the [Sample Files]() folder for the sample RVT file and sample data before running the app. It includes the following:
 
 - **asset_rme_advanced_sample_project.rvt**: The sample Revit file includes assets with preset Revit shared parameters (`Asset ID`, `Asset Location`, and `Asset Category`) that can be used to initialize your BIM360 Assets demo project.
 
@@ -101,6 +100,8 @@ Follow the following steps to set up your BIM360 Assets module to run this viewe
 
 [![https://youtu.be/HMiWv9ULrvE](http://img.youtube.com/vi/HMiWv9ULrvE/0.jpg)](https://youtu.be/HMiWv9ULrvE "BIM360 Assets API & Viewer Integration Sample File Setup")
 
+[Click here or click on the above picture to view the video](https://youtu.be/HMiWv9ULrvE)
+
 ### Work with your models
 
 1. Open your Revit models and run both Dynamo scripts, `ListAssetLocation.dyn` and `ListElementsByRooms.dyn`, to initialize request parameters and data for BIM360 [Assets](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Assets_about_assets_assets_overview_html), then you will get two spreadsheet files, `asset_location_data_export.csv` and `asset_data_export.csv`. (See [Sample files](#sample-files) for the script details)
@@ -119,12 +120,6 @@ Follow the following steps to set up your BIM360 Assets module to run this viewe
 
 8. Upload your Revit model with changes made from **step 2** to the `Project File` folder of your Document Management module.
 
-**Note:** You can also checkout these two awesome samples to import/extort assets configurations:
-
-- [forge-bim360.asset.exchange.excel](https://github.com/xiaodongliang/forge-bim360.asset.exchange.excel)
-
-- [forge-revit.extract.assert-bim360](https://github.com/JohnOnSoftware/forge-revit.extract.assert-bim360)
-
 ## Running locally
 
 Clone this project or download it. It's recommended to install [GitHub desktop](https://desktop.github.com/). To clone it via command line, use the following (**Terminal** on MacOSX/Linux, **Git Shell** on Windows):
@@ -135,13 +130,13 @@ Clone this project or download it. It's recommended to install [GitHub desktop](
 
 Right-click on the project, then go to **Debug**. Adjust the settings as shown below.
 
-![](bim360issues/wwwroot/img/readme/visual_studio_settings.png) 
+![](bim360assets/wwwroot/img/readme/visual_studio_settings.png) 
 
 **Visual Sutdio Code** (Windows, MacOS):
 
 Open the folder, at the bottom-right, select **Yes** and **Restore**. This restores the packages (e.g. Autodesk.Forge) and creates the launch.json file. See *Tips & Tricks* for .NET Core on MacOS.
 
-![](bim360issues/wwwroot/img/readme/visual_code_restore.png)
+![](bim360assets/wwwroot/img/readme/visual_code_restore.png)
 
 At the `.vscode\launch.json`, find the env vars and add your Forge Client ID, Secret and callback URL. Also define the `ASPNETCORE_URLS` variable. The end result should be as shown below:
 
@@ -170,11 +165,11 @@ Watch [this video](https://www.youtube.com/watch?v=Oqa9O20Gj0c) on how deploy sa
 Documentation:
 
 - BIM 360 Assets API
-    - [Using the Assets API](https://forge.autodesk.com/en/docs/bim360-private/v1/overview/field-guide/using-assets-api/)
-    - [Assets Related APIs](https://forge.autodesk.com/en/docs/bim360-private/v1/overview/field-guide/assets-related-apis/)
-- [BIM 360 API](https://developer.autodesk.com/en/docs/bim360/v1/overview/) and [App Provisioning](https://forge.autodesk.com/blog/bim-360-docs-provisioning-forge-apps)
-- [Data Management API](https://developer.autodesk.com/en/docs/data/v2/overview/)
-- [Viewer](https://developer.autodesk.com/en/docs/viewer/v6)
+    - [Using the Assets API](https://forge.autodesk.com/en/docs/bim360/v1/overview/field-guide/using-assets-api/)
+    - [Assets Related APIs](https://forge.autodesk.com/en/docs/bim360/v1/overview/field-guide/assets-related-apis/)
+- [BIM 360 API](https://forge.autodesk.com/en/docs/bim360/v1/overview/) and [App Provisioning](https://forge.autodesk.com/blog/bim-360-docs-provisioning-forge-apps)
+- [Data Management API](https://forge.autodesk.com/en/docs/data/v2/overview/)
+- [Viewer](https://forge.autodesk.com/en/docs/viewer/v7)
 
 Tutorials:
 
@@ -186,6 +181,12 @@ Blogs:
 
 - [Forge Blog](https://forge.autodesk.com/categories/bim-360-api)
 - [Field of View](https://fieldofviewblog.wordpress.com/), a BIM focused blog
+
+Related samples:
+
+- Checkout these awesome samples to import/extort assets configurations while following [Work with your models](#work-with-your-models) to import assets data:
+    - [forge-bim360.asset.exchange.excel](https://github.com/xiaodongliang/forge-bim360.asset.exchange.excel)
+    - [forge-revit.extract.assert-bim360](https://github.com/JohnOnSoftware/forge-revit.extract.assert-bim360)
 
 ### Tips & Tricks
 
