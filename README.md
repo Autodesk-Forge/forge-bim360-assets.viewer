@@ -36,6 +36,7 @@ This picture shows similar functionalities as the above one does, but the view a
 Here is the video demonstrating how this sample works quickly. First, it shows data of BIM360 Assets on the BIM360 Web UI, then go to the viewer sample to open `BIM360AssetListPanel`, `BIM360AssetInfoPanel` and `BIM360SpaceFilterPanel` sequentially, and data shown on the `BIM360AssetListPanel` is the same as we see on the BIM360 Web UI.
 
 [![](http://img.youtube.com/vi/aNLFpVgeOVc/0.jpg)](http://www.youtube.com/watch?v=aNLFpVgeOVc "Demo the possibility of BIM360 Assets API & Forge Viewer Integration")
+
 [Click here or click on the above picture to view the video](http://www.youtube.com/watch?v=aNLFpVgeOVc)
 
 **Note:** Demo video comes with subtitle. Click `CC` of YouTube video player button while playing the video and configure it with the options below for better video-watching experience:
@@ -68,7 +69,7 @@ Here is the video demonstrating how this sample works quickly. First, it shows d
 
 ### Sample files
 
-Check the [Sample Files]() folder for the sample RVT file and sample data before running the app. It includes the following:
+Check the [Sample Files](/Sample Files) folder for the sample RVT file and sample data before running the app. It includes the following:
 
 - **asset_rme_advanced_sample_project.rvt**: The sample Revit file includes assets with preset Revit shared parameters (`Asset ID`, `Asset Location`, and `Asset Category`) that can be used to initialize your BIM360 Assets demo project.
 
@@ -132,7 +133,7 @@ Right-click on the project, then go to **Debug**. Adjust the settings as shown b
 
 ![](bim360assets/wwwroot/img/readme/visual_studio_settings.png) 
 
-**Visual Sutdio Code** (Windows, MacOS):
+**Visual Studio Code** (Windows, MacOS):
 
 Open the folder, at the bottom-right, select **Yes** and **Restore**. This restores the packages (e.g. Autodesk.Forge) and creates the launch.json file. See *Tips & Tricks* for .NET Core on MacOS.
 
