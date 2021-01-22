@@ -69,7 +69,7 @@ Here is the video demonstrating how this sample works quickly. First, it shows d
 
 ### Sample files
 
-Check the [Sample Files](/Sample Files) folder for the sample RVT file and sample data before running the app. It includes the following:
+Check the [SampleFiles](SampleFiles) folder for the sample RVT file and sample data before running the app. It includes the following:
 
 - **asset_rme_advanced_sample_project.rvt**: The sample Revit file includes assets with preset Revit shared parameters (`Asset ID`, `Asset Location`, and `Asset Category`) that can be used to initialize your BIM360 Assets demo project.
 
