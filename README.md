@@ -47,8 +47,6 @@ Here is the video demonstrating how this sample works quickly. First, it shows d
 
 - The BIM360 [Locations](https://help.autodesk.com/view/BIM360D/ENU/?guid=BIM360D_Administration_About_Project_Admin_about_location_html) API is not yet publicly released yet (still in private beta currently), so you will need to set up extra properties in the Revit model. Please check [Import sample data](#import-sample-data) for the detail instructions.
 
-- This sample doesn't SVF2 yet since hidden fragments are ignored by the viewer (v7.34) currently.
-
 - This sample support models of Revit 2018 and later only due to the supports of the [AecModelData](https://forge.autodesk.com/blog/consume-aec-data-which-are-model-derivative-api) and [Master views](https://forge.autodesk.com/blog/new-rvt-svf-model-derivative-parameter-generates-additional-content-including-rooms-and-spaces).
 
 ## Live version
@@ -198,6 +196,21 @@ This sample uses .NET Core and works fine on both Windows and MacOS, see [this t
 1. **Cannot see my BIM 360 projects**: Make sure to provision the Forge App Client ID within the BIM 360 Account, [learn more here](https://forge.autodesk.com/blog/bim-360-docs-provisioning-forge-apps). This requires the Account Admin permission.
 
 2. **Error setting certificate verify locations** error: may happen on Windows, use the following: `git config --global http.sslverify "false"`
+
+3. **SVF2 Support** : You must use viewer **v7.36 & newer versions** to support loading hidden fragments (e.g., Rooms), then change codes as below:
+
+    - change viewer's env and api to `env: 'MD20Prod'` & `api: 'D3S'` like below 
+in [bim360assets/wwwroot/js/ForgeViewer.js#L31](bim360assets/wwwroot/js/ForgeViewer.js#L31)
+        ```javascript
+        var options = {
+            //env: 'AutodeskProduction',
+            //api: 'derivativeV2' + (atob(urn.replace('_', '/')).indexOf('emea') > -1 ? '_EU' : ''),
+            env: 'MD20Prod' + (atob(urn.replace('urn:', '').replace('_', '/')).indexOf('emea') > -1 ? 'EU' : 'US'),
+            api: 'D3S',
+            getAccessToken: getForgeToken
+        };
+        ```
+    - ensure `skipHiddenFragments: false` is added to loadModel option to [Viewer3D#loadDocumentNode](https://forge.autodesk.com/en/docs/viewer/v7/reference/Viewing/Viewer3D/#loaddocumentnode-avdocument-manifestnode-options) in [bim360assets/wwwroot/js/BIM360AssetExtension.js#1637](bim360assets/wwwroot/js/BIM360AssetExtension.js#1637)`
 
 ## License
 

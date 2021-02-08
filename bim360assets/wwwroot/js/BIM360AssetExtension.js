@@ -1634,6 +1634,7 @@
                         ids: roomDbIds,
                         modelNameOverride: 'Room Only Model',
                         keepCurrentModels: true,
+                        //skipHiddenFragments: false,
                         globalOffset: this.viewer.model.getGlobalOffset()
                     }
                 );

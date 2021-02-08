@@ -27,8 +27,10 @@ function launchViewer(urn, viewableId) {
   }
   var options = {
     env: 'AutodeskProduction',
-    getAccessToken: getForgeToken,
-    api: 'derivativeV2' + (atob(urn.replace('_', '/')).indexOf('emea') > -1 ? '_EU' : '')
+    api: 'derivativeV2' + (atob(urn.replace('_', '/')).indexOf('emea') > -1 ? '_EU' : ''),
+    //env: 'MD20Prod' + (atob(urn.replace('urn:', '').replace('_', '/')).indexOf('emea') > -1 ? 'EU' : 'US'),
+    //api: 'D3S',
+    getAccessToken: getForgeToken
   };
 
   Autodesk.Viewing.Initializer(options, () => {
