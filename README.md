@@ -199,8 +199,7 @@ This sample uses .NET Core and works fine on both Windows and MacOS, see [this t
 
 3. **SVF2 Support** : You must use viewer **v7.36 & newer versions** to support loading hidden fragments (e.g., Rooms), then change codes as below:
 
-    - change viewer's env and api to `env: 'MD20Prod'` & `api: 'D3S'` like below 
-in [bim360assets/wwwroot/js/ForgeViewer.js#L31](bim360assets/wwwroot/js/ForgeViewer.js#L31)
+    - Change viewer's env and api to `env: 'MD20Prod'` and `api: 'D3S'` like below in [bim360assets/wwwroot/js/ForgeViewer.js#L31](bim360assets/wwwroot/js/ForgeViewer.js#L31)
         ```javascript
         var options = {
             //env: 'AutodeskProduction',
@@ -210,7 +209,7 @@ in [bim360assets/wwwroot/js/ForgeViewer.js#L31](bim360assets/wwwroot/js/ForgeVie
             getAccessToken: getForgeToken
         };
         ```
-    - ensure `skipHiddenFragments: false` is added to loadModel option to [Viewer3D#loadDocumentNode](https://forge.autodesk.com/en/docs/viewer/v7/reference/Viewing/Viewer3D/#loaddocumentnode-avdocument-manifestnode-options) in [bim360assets/wwwroot/js/BIM360AssetExtension.js#1637](bim360assets/wwwroot/js/BIM360AssetExtension.js#1637)`
+    - Ensure `skipHiddenFragments: false` is added to the options of [Viewer3D#loadDocumentNode](https://forge.autodesk.com/en/docs/viewer/v7/reference/Viewing/Viewer3D/#loaddocumentnode-avdocument-manifestnode-options) in [bim360assets/wwwroot/js/BIM360AssetExtension.js#1637](bim360assets/wwwroot/js/BIM360AssetExtension.js#1637)
 
 ## License
 
