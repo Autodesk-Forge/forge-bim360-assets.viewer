@@ -209,7 +209,20 @@ This sample uses .NET Core and works fine on both Windows and MacOS, see [this t
             getAccessToken: getForgeToken
         };
         ```
-    - Ensure `skipHiddenFragments: false` is added to the options of [Viewer3D#loadDocumentNode](https://forge.autodesk.com/en/docs/viewer/v7/reference/Viewing/Viewer3D/#loaddocumentnode-avdocument-manifestnode-options) in [bim360assets/wwwroot/js/BIM360AssetExtension.js#1637](bim360assets/wwwroot/js/BIM360AssetExtension.js#1637)
+    - Ensure `skipHiddenFragments: false` is added to the options of [Viewer3D#loadDocumentNode](https://forge.autodesk.com/en/docs/viewer/v7/reference/Viewing/Viewer3D/#loaddocumentnode-avdocument-manifestnode-options) in [bim360assets/wwwroot/js/BIM360AssetExtension.js#L1637](bim360assets/wwwroot/js/BIM360AssetExtension.js#L1637)
+        ```javascript
+        this.roomModel = await this.viewer.loadDocumentNode(
+            doc,
+            masterViewBubble,
+            {
+                ids: roomDbIds,
+                modelNameOverride: 'Room Only Model',
+                keepCurrentModels: true,
+                skipHiddenFragments: false,
+                globalOffset: this.viewer.model.getGlobalOffset()
+            }
+        );
+        ```
 
 ## License
 
