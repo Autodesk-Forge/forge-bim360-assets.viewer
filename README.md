@@ -172,8 +172,8 @@ Documentation:
 
 Tutorials:
 
-- Assets API Tutorial (TBD)
-- Assets API Tutorial 2 (TBD)
+- [Setup BIM 360 Assets Project Settings](https://forge.autodesk.com/en/docs/bim360/v1/tutorials/assets/create-assets-project-settings/) (TBD)
+- [Retrieve BIM 360 Assets Data](https://forge.autodesk.com/en/docs/bim360/v1/tutorials/assets/retrieve-assets-data/) (TBD)
 - [Learn Forge - View BIM 360 Models](http://learnforge.autodesk.io/#/tutorials/viewhubmodels)
 
 Blogs:
@@ -197,7 +197,7 @@ This sample uses .NET Core and works fine on both Windows and MacOS, see [this t
 
 2. **Error setting certificate verify locations** error: may happen on Windows, use the following: `git config --global http.sslverify "false"`
 
-3. **SVF2 Support** : You must use viewer **v7.36 & newer versions** to support loading hidden fragments (e.g., Rooms), then change codes as below:
+3. **Enable SVF2 Support** : You must use viewer **v7.36 & newer versions** to support loading hidden fragments (e.g., Rooms) in SVF2, then change codes as below:
 
     - Change viewer's env and api to `env: 'MD20Prod'` and `api: 'D3S'` like below in [bim360assets/wwwroot/js/ForgeViewer.js#L31](bim360assets/wwwroot/js/ForgeViewer.js#L31)
         ```javascript
