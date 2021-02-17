@@ -123,7 +123,7 @@ Follow the following steps to set up your BIM360 Assets module to run this viewe
 
 Clone this project or download it. It's recommended to install [GitHub desktop](https://desktop.github.com/). To clone it via command line, use the following (**Terminal** on MacOSX/Linux, **Git Shell** on Windows):
 
-    git clone https://github.com/autodesk-forge/forge-bim360-assets
+    git clone https://github.com/autodesk-forge/forge-bim360-assets.viewer
 
 **Visual Studio** (Windows):
 
@@ -163,17 +163,15 @@ Watch [this video](https://www.youtube.com/watch?v=Oqa9O20Gj0c) on how deploy sa
 
 Documentation:
 
-- BIM 360 Assets API
-    - [Using the Assets API](https://forge.autodesk.com/en/docs/bim360/v1/overview/field-guide/using-assets-api/)
-    - [Assets Related APIs](https://forge.autodesk.com/en/docs/bim360/v1/overview/field-guide/assets-related-apis/)
+- [BIM 360 Assets API Field Guide](https://forge.autodesk.com/en/docs/bim360/v1/overview/field-guide/assets/)
 - [BIM 360 API](https://forge.autodesk.com/en/docs/bim360/v1/overview/) and [App Provisioning](https://forge.autodesk.com/blog/bim-360-docs-provisioning-forge-apps)
 - [Data Management API](https://forge.autodesk.com/en/docs/data/v2/overview/)
 - [Viewer](https://forge.autodesk.com/en/docs/viewer/v7)
 
 Tutorials:
 
-- [Setup BIM 360 Assets Project Settings](https://forge.autodesk.com/en/docs/bim360/v1/tutorials/assets/create-assets-project-settings/) (TBD)
-- [Retrieve BIM 360 Assets Data](https://forge.autodesk.com/en/docs/bim360/v1/tutorials/assets/retrieve-assets-data/) (TBD)
+- [Setup BIM 360 Assets Project Settings](https://forge.autodesk.com/en/docs/bim360/v1/tutorials/assets/create-assets-project-settings/)
+- [Retrieve BIM 360 Assets Data](https://forge.autodesk.com/en/docs/bim360/v1/tutorials/assets/retrieve-assets-data/)
 - [Learn Forge - View BIM 360 Models](http://learnforge.autodesk.io/#/tutorials/viewhubmodels)
 
 Blogs:
