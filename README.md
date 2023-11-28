@@ -1,3 +1,6 @@
+# DEPRECATED
+This repository has been deprecated and migrated to https://github.com/autodesk-platform-services/aps-bim360-assets-viewer
+
 # View BIM 360 Assets
 
 ![Platforms](https://img.shields.io/badge/platform-Windows|MacOS-lightgray.svg)
